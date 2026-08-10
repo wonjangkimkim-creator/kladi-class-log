@@ -323,7 +323,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=4, APP_VERSION="v1.3";
+const APP_BUILD=5, APP_VERSION="v1.4";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -490,10 +490,10 @@ function errNoteRow(jid,n){return `<div class="itemrow" style="grid-template-col
    <input type="number" min="0" max="${n.wrong}" placeholder="맞은수" value="${n.correct??''}" onchange="setErrNote('${n.id}','correct',this.value)">
    <label class="mini" style="display:flex;gap:3px;align-items:center"><input type="checkbox" style="width:auto" ${n.status==='완료'?'checked':''} onchange="setErrNote('${n.id}','done',this.checked)">완료</label></div>`;}
 function lastHwRow(jid,i,h,cb){const opts=[...new Set([...cb,h.book].filter(Boolean))];
-  return `<div class="itemrow" style="grid-template-columns:1fr 1.2fr 58px 74px auto">
+  return `<div class="itemrow" style="grid-template-columns:1fr 1fr 96px 72px auto">
   <select onchange="setLastBook('${jid}',${i},this.value)"><option value="">교재</option>${opts.map(o=>`<option ${o===h.book?'selected':''}>${o}</option>`).join('')}<option value="__custom">+직접입력</option></select>
   <input value="${h.val||''}" placeholder="페이지/단원" onchange="setObj('${jid}','lastHw',${i},'val',this.value)">
-  <span class="row" style="gap:2px"><input type="number" value="${h.rate??''}" placeholder="%" style="width:44px" onchange="setObj('${jid}','lastHw',${i},'rate',this.value)"></span>
+  <span class="row" style="gap:3px;align-items:center"><input type="number" value="${h.rate??''}" placeholder="과제율" style="width:64px" onchange="setObj('${jid}','lastHw',${i},'rate',this.value)"><span class="mini">%</span></span>
   <select onchange="setObj('${jid}','lastHw',${i},'errDone',this.value)"><option ${h.errDone==='완료'?'selected':''}>완료</option><option ${h.errDone!=='완료'?'selected':''}>미완료</option></select>
   <button class="x" onclick="delArr('${jid}','lastHw',${i})">×</button></div>`;}
 function nextHwRow(jid,i,h,cb){const opts=[...new Set([...cb,h.book].filter(Boolean))];
@@ -594,7 +594,7 @@ function journalToBlock(j){const s=studentById(j.studentId);const books=composed
   let tests;const ts=j.testSkip||{};if(ts.skipped)tests=`생략${ts.reason?' ('+ts.reason+')':''}`;
   else tests=(j.tests||[]).map(t=>{const sc=t.scoreType==='점수'?(t.score||''):((t.correct||'')+'/'+(t.total||''));return `${t.name||''} ${sc}${t.errDone==='미완료'?'(오답미완료)':''}`.trim();}).filter(x=>x).join(', ')||'-';
   const errs=errSnapshot(j).join(', ')||'-';
-  const hwRate=(j.lastHw||[]).length?j.lastHw.map(h=>h.rate!=null?h.rate+'%':'-').join(', '):'-';
+  const hwRate=(j.lastHw||[]).length?j.lastHw.map(h=>{const st=(h.errDone==='완료')?'오답완료':'오답미완료';return [h.book,h.val,(h.rate!=null?h.rate+'%':''),'('+st+')'].filter(x=>x&&(''+x).trim()).join(' ');}).join(' / '):'-';
   const next=(j.nextHw||[]).filter(h=>h.book||h.val).map(h=>`${h.book?h.book+' – ':''}${h.val||''}`);
   return {name:s.name,school:s.school,grade:s.grade,text:`[과목] ${(j.subjects||[]).join(', ')||'-'}\n[교재] ${books||'-'}\n[수업] ${lesson}\n[TEST] ${tests}\n[오답] ${errs}\n[숙제] ${hwRate}\n[다음숙제]\n${next.join('\n')||'-'}`};}
 function currentExportJournals(){const d=document.getElementById('xDate').value,t=document.getElementById('xTeacher').value;return DB.journals.filter(j=>j.date===d&&!j.absent&&(!t||(studentById(j.studentId)||{}).teacher===t));}
