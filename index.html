@@ -323,7 +323,8 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=1, APP_VERSION="v1.0";
+const APP_BUILD=2, APP_VERSION="v1.1";
+const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
 let DB=null, SESSION={role:null,user:null}, CURVIEW='write';
@@ -834,6 +835,8 @@ document.addEventListener('focusout',()=>{if(SYNC.pending){SYNC.pending=false;se
 
 (function boot(){DB=load();if(!DB||!DB.students||DB.__v!==6){seedDB();}if(!DB.notes)DB.notes=[];if(!DB.withdrawn)DB.withdrawn=[];if(!DB.teacherPw)DB.teacherPw={};refreshBookDL();pickRole('teacher');
   var vb=document.getElementById('verBadge');if(vb)vb.textContent=APP_VERSION+' · 1차 프로토타입';
-  const sc=localStorage.getItem(FB_KEY);if(sc){try{connectSync(JSON.parse(sc),false);}catch(e){}}})();
+  var sc=localStorage.getItem(FB_KEY);
+  if(!sc && typeof DEFAULT_FB_CFG!=='undefined' && DEFAULT_FB_CFG && DEFAULT_FB_CFG.databaseURL){try{localStorage.setItem(FB_KEY,JSON.stringify(DEFAULT_FB_CFG));sc=localStorage.getItem(FB_KEY);}catch(e){}}
+  if(sc){try{connectSync(JSON.parse(sc),false);}catch(e){}}})();
 </script>
 </body></html>
