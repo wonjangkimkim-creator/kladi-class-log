@@ -323,7 +323,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=2, APP_VERSION="v1.1";
+const APP_BUILD=3, APP_VERSION="v1.2";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -393,7 +393,8 @@ function buildNav(){const menus={teacher:[["write","수업일지 작성"],["repo
   go(menus[SESSION.role][0][0]);}
 function go(v){CURVIEW=v;document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));document.getElementById('v-'+v).classList.add('active');
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));window.scrollTo(0,0);
-  ({error:initError,export:initExport,dash:renderDash,data:renderData,write:initWrite,notes:renderNotes,students:initStudents,report:initReport,analysis:renderAnalysis}[v]||(()=>{}))();}
+  ({error:initError,export:initExport,dash:renderDash,data:renderData,write:initWrite,notes:renderNotes,students:initStudents,report:initReport,analysis:renderAnalysis}[v]||(()=>{}))();
+  try{if(typeof SYNC!=='undefined'&&SYNC.bufferedRemote&&!writeBusy()){var _b=SYNC.bufferedRemote;SYNC.bufferedRemote=null;applyRemote(_b);}}catch(e){}}
 
 /* 공통 */
 function refreshBookDL(){document.getElementById('bookDL').innerHTML=DB.textbooks.map(b=>`<option value="${b}">`).join('');}
@@ -825,7 +826,10 @@ function connectSync(cfg,interactive){
   }catch(e){setSyncUI('err','연결실패');toast('연결 오류: config 확인');}
 }
 function onRemote(snap){const v=snap.val();if(!v)return;if(v._by===SYNC.clientId)return;applyRemote(v);}
-function applyRemote(v){const {_ts,_by,...data}=v;if(!data.students)return;SYNC.applying=true;DB=data;if(!DB.notes)DB.notes=[];if(!DB.withdrawn)DB.withdrawn=[];if(!DB.teacherPw)DB.teacherPw={};try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}SYNC.applying=false;refreshBookDL();
+function writeBusy(){return CURVIEW==='write' && !!(document.querySelector('.rchk:checked')||document.querySelector('#journalArea .jcard'));}
+function applyRemote(v){
+  if(writeBusy()){SYNC.bufferedRemote=v;return;}
+  const {_ts,_by,...data}=v;if(!data.students)return;SYNC.applying=true;DB=data;if(!DB.notes)DB.notes=[];if(!DB.withdrawn)DB.withdrawn=[];if(!DB.teacherPw)DB.teacherPw={};try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}SYNC.applying=false;refreshBookDL();
   const ae=document.activeElement; if(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)){SYNC.pending=true;} else rerenderCurrent();}
 function rerenderCurrent(){({error:initError,export:initExport,dash:renderDash,data:renderData,notes:renderNotes,students:initStudents,report:fillRepStudents,analysis:renderAnalysis,write:()=>{try{renderRoster();loadSession();}catch(e){}}}[CURVIEW]||(()=>{}))();}
 function cloudPush(){if(!SYNC.connected||SYNC.applying||!SYNC.ref)return;clearTimeout(SYNC.pushTimer);SYNC.pushTimer=setTimeout(()=>{try{SYNC.ref.set(Object.assign({},DB,{_by:SYNC.clientId,_ts:firebase.database.ServerValue.TIMESTAMP}));}catch(e){}},450);}
