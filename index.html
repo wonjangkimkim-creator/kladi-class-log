@@ -138,6 +138,9 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 .syncpill.off{background:#efeadf;color:#8a8272}
 .syncpill.err{background:var(--crit-bg);color:#a71933}
 .syncpill.wait{background:var(--warn-bg);color:#9a6206}
+#updBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:300;background:var(--grad);color:#fff;padding:11px 16px;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:700;box-shadow:0 4px 14px rgba(212,112,32,.4)}
+#updBanner button{background:#fff;color:var(--orange-d);border:none;padding:6px 15px;border-radius:8px;font-weight:800;font-size:12.5px;cursor:pointer}
+#updBanner .cx{cursor:pointer;opacity:.85;font-weight:400}
 /* report */
 .report{background:#fff;border:1px solid var(--line);border-radius:20px;padding:0;max-width:860px;margin:0 auto;box-shadow:var(--shadow);overflow:hidden}
 .report .rhead{background:var(--grad-navy);color:#fff;padding:26px 30px;position:relative}
@@ -157,6 +160,9 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 @media print{header,nav,.noprint,.toast{display:none!important}main{padding:0!important;max-width:none!important}.view{display:none!important}#v-report.active{display:block!important}.report{border:none;max-width:none;box-shadow:none;border-radius:0}#reportActions{display:none!important}}
 </style></head>
 <body>
+<div id="updBanner">🔄 새 버전이 배포되었습니다. 새로고침하면 최신 버전으로 업데이트됩니다.
+  <button onclick="doUpdateRefresh()">지금 새로고침</button>
+  <span class="cx" onclick="this.parentNode.style.display='none'">✕</span></div>
 
 <div id="login"><div class="box">
   <div class="login-brand"><div class="logo-mark lg">K</div><div><div class="bname" style="font-size:20px">클라디수학학원</div><div class="btag">SUMANPEU MANAGEMENT</div></div></div>
@@ -175,7 +181,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 <header>
   <div class="brand"><div class="logo-mark">K</div>
     <div class="brand-text"><div class="bname">클라디수학학원</div><div class="btag">SUMANPEU · 수업일지 관리</div></div></div>
-  <span class="badge">1차 프로토타입</span>
+  <span class="badge" id="verBadge">1차 프로토타입</span>
   <span class="who" id="whoami"></span>
   <span id="syncPill" class="syncpill off" title="실시간 동기화 상태">오프라인</span>
   <button class="btn ghost sm" onclick="logout()">로그아웃</button></header>
@@ -317,6 +323,9 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
+const APP_BUILD=1, APP_VERSION="v1.0";
+function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
+function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
 let DB=null, SESSION={role:null,user:null}, CURVIEW='write';
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
 let _c=0;function uid(p){return p+'_'+(Date.now()).toString(36)+(_c++).toString(36)+Math.floor(performance.now()).toString(36);}
@@ -790,7 +799,8 @@ function renderAnalysis(){const at=document.getElementById('anTeacher');if(at&&!
 const FB_KEY='kladi_fb_cfg_v1';
 let SYNC={app:null,ref:null,connected:false,clientId:'c'+Math.random().toString(36).slice(2),pushTimer:null,pending:false,applying:false};
 function setSyncUI(state,txt){['syncPill','syncPill2'].forEach(id=>{const el=document.getElementById(id);if(el){el.className='syncpill '+state;el.textContent=txt;}});}
-function parseCfg(text){text=(text||'').trim();if(!text)return null;try{return JSON.parse(text);}catch(e){}try{const i=text.indexOf('{'),j=text.lastIndexOf('}');if(i<0)return null;return (new Function('return ('+text.slice(i,j+1)+')'))();}catch(e){return null;}}
+function extractCfgObj(text){let s=text.indexOf('firebaseConfig');let b=(s>=0)?text.indexOf('{',s):text.indexOf('{');if(b<0)return null;let d=0;for(let i=b;i<text.length;i++){const c=text[i];if(c==='{')d++;else if(c==='}'){d--;if(d===0)return text.slice(b,i+1);}}return null;}
+function parseCfg(text){text=(text||'').trim();if(!text)return null;try{const o=JSON.parse(text);if(o&&typeof o==='object')return o;}catch(e){}const obj=extractCfgObj(text);if(!obj)return null;try{return (new Function('return ('+obj+')'))();}catch(e){}try{return JSON.parse(obj);}catch(e){}return null;}
 function connectSyncFromInput(){const cfg=parseCfg(document.getElementById('fbCfg').value);if(!cfg||!cfg.databaseURL){toast('config가 올바르지 않거나 databaseURL이 없습니다 (Realtime Database 활성화 필요)');return;}localStorage.setItem(FB_KEY,JSON.stringify(cfg));connectSync(cfg,true);}
 function connectSync(cfg,interactive){
   if(typeof firebase==='undefined'){toast('Firebase를 불러오지 못했습니다 (네트워크 확인)');setSyncUI('err','연결실패');return;}
@@ -806,6 +816,7 @@ function connectSync(cfg,interactive){
       if(!v){ pushNow(true); }
       else { if(interactive){ if(confirm('클라우드에 저장된 데이터가 있습니다.\n\n[확인] 클라우드 데이터를 불러오기\n[취소] 이 기기 데이터로 클라우드 덮어쓰기')) applyRemote(v); else pushNow(true); } else applyRemote(v); }
       SYNC.ref.on('value',onRemote);
+      try{SYNC.buildRef=db.ref('kladi/appBuild');SYNC.buildRef.on('value',bs=>{var rb=bs.val()||0;if(rb>APP_BUILD)showUpdateBanner();else if(APP_BUILD>rb){try{SYNC.buildRef.set(APP_BUILD);}catch(e){}}});}catch(e){}
       SYNC.connected=true; setSyncUI('on','실시간 동기화');
       const inf=document.getElementById('syncInfo'); if(inf)inf.textContent='연결됨 · 이 기기 ID '+SYNC.clientId.slice(0,6);
       if(interactive)toast('실시간 동기화 연결됨');
@@ -818,10 +829,11 @@ function applyRemote(v){const {_ts,_by,...data}=v;if(!data.students)return;SYNC.
 function rerenderCurrent(){({error:initError,export:initExport,dash:renderDash,data:renderData,notes:renderNotes,students:initStudents,report:fillRepStudents,analysis:renderAnalysis,write:()=>{try{renderRoster();loadSession();}catch(e){}}}[CURVIEW]||(()=>{}))();}
 function cloudPush(){if(!SYNC.connected||SYNC.applying||!SYNC.ref)return;clearTimeout(SYNC.pushTimer);SYNC.pushTimer=setTimeout(()=>{try{SYNC.ref.set(Object.assign({},DB,{_by:SYNC.clientId,_ts:firebase.database.ServerValue.TIMESTAMP}));}catch(e){}},450);}
 function pushNow(silent){if(!SYNC.ref){if(!silent)toast('먼저 연결하세요');return;}try{SYNC.ref.set(Object.assign({},DB,{_by:SYNC.clientId,_ts:firebase.database.ServerValue.TIMESTAMP}));if(!silent)toast('클라우드로 올렸습니다');}catch(e){if(!silent)toast('업로드 실패');}}
-function disconnectSync(){try{if(SYNC.ref)SYNC.ref.off();if(SYNC.app)SYNC.app.delete();}catch(e){}SYNC.connected=false;SYNC.ref=null;localStorage.removeItem(FB_KEY);setSyncUI('off','오프라인');const inf=document.getElementById('syncInfo');if(inf)inf.textContent='';toast('동기화 해제됨');}
+function disconnectSync(){try{if(SYNC.ref)SYNC.ref.off();if(SYNC.buildRef)SYNC.buildRef.off();if(SYNC.app)SYNC.app.delete();}catch(e){}SYNC.connected=false;SYNC.ref=null;localStorage.removeItem(FB_KEY);setSyncUI('off','오프라인');const inf=document.getElementById('syncInfo');if(inf)inf.textContent='';toast('동기화 해제됨');}
 document.addEventListener('focusout',()=>{if(SYNC.pending){SYNC.pending=false;setTimeout(rerenderCurrent,120);}});
 
 (function boot(){DB=load();if(!DB||!DB.students||DB.__v!==6){seedDB();}if(!DB.notes)DB.notes=[];if(!DB.withdrawn)DB.withdrawn=[];if(!DB.teacherPw)DB.teacherPw={};refreshBookDL();pickRole('teacher');
+  var vb=document.getElementById('verBadge');if(vb)vb.textContent=APP_VERSION+' · 1차 프로토타입';
   const sc=localStorage.getItem(FB_KEY);if(sc){try{connectSync(JSON.parse(sc),false);}catch(e){}}})();
 </script>
 </body></html>
