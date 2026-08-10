@@ -323,7 +323,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=3, APP_VERSION="v1.2";
+const APP_BUILD=4, APP_VERSION="v1.3";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -653,7 +653,7 @@ function manualSave(){save();toast('현재 데이터 저장 완료');}
 function exportJSON(){dl('수업일지DB_백업_'+todayStr()+'.json',JSON.stringify(DB,null,2),'application/json');toast('백업 파일 저장 완료');}
 function importJSON(){const f=document.getElementById('jsonFile').files[0];if(!f){toast('복원할 백업 파일을 선택하세요');return;}
   if(!confirm('백업 파일로 복원하면 현재 입력된 데이터를 모두 덮어씁니다. 진행할까요?'))return;
-  const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d||!d.students||!d.journals){toast('올바른 백업 파일이 아닙니다');return;}DB=d;if(!DB.notes)DB.notes=[];if(!DB.assistants)DB.assistants=['조교A'];save();toast('백업 파일로 복원(업데이트) 완료');renderData();}catch(err){toast('복원 실패: 파일 형식 오류');}};r.readAsText(f);}
+  const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d||!d.students){toast('올바른 백업 파일이 아닙니다');return;}DB=normalizeDB(d);if(!DB.assistants.length)DB.assistants=['조교A'];save();toast('백업 파일로 복원(업데이트) 완료');renderData();}catch(err){toast('복원 실패: 파일 형식 오류');}};r.readAsText(f);}
 function resetDemo(){if(confirm('데모 데이터로 초기화할까요?')){seedDB();toast('초기화 완료');renderData();}}
 
 /* ===== 학생관리 (신규·이동·퇴원) ===== */
@@ -826,10 +826,16 @@ function connectSync(cfg,interactive){
   }catch(e){setSyncUI('err','연결실패');toast('연결 오류: config 확인');}
 }
 function onRemote(snap){const v=snap.val();if(!v)return;if(v._by===SYNC.clientId)return;applyRemote(v);}
+function toArr(x){return Array.isArray(x)?x:(x&&typeof x==='object'?Object.keys(x).sort((a,b)=>(+a)-(+b)).map(k=>x[k]):[]);}
+function normalizeDB(d){if(!d||typeof d!=='object')return d;
+  ['students','journals','errorNotes','notes','withdrawn','assistants','subjects','textbooks'].forEach(k=>{d[k]=toArr(d[k]);});
+  if(!d.teacherPw||typeof d.teacherPw!=='object'||Array.isArray(d.teacherPw))d.teacherPw={};
+  d.journals.forEach(j=>{if(!j||typeof j!=='object')return;['subjects','books','lesson','tests','lastHw','nextHw'].forEach(k=>{j[k]=toArr(j[k]);});if(!j.testSkip||typeof j.testSkip!=='object')j.testSkip={skipped:!!(j.testSkip&&j.testSkip.skipped),reason:(j.testSkip&&j.testSkip.reason)||''};});
+  return d;}
 function writeBusy(){return CURVIEW==='write' && !!(document.querySelector('.rchk:checked')||document.querySelector('#journalArea .jcard'));}
 function applyRemote(v){
   if(writeBusy()){SYNC.bufferedRemote=v;return;}
-  const {_ts,_by,...data}=v;if(!data.students)return;SYNC.applying=true;DB=data;if(!DB.notes)DB.notes=[];if(!DB.withdrawn)DB.withdrawn=[];if(!DB.teacherPw)DB.teacherPw={};try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}SYNC.applying=false;refreshBookDL();
+  const {_ts,_by,...data}=v;if(!data.students)return;SYNC.applying=true;DB=normalizeDB(data);try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}SYNC.applying=false;refreshBookDL();
   const ae=document.activeElement; if(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)){SYNC.pending=true;} else rerenderCurrent();}
 function rerenderCurrent(){({error:initError,export:initExport,dash:renderDash,data:renderData,notes:renderNotes,students:initStudents,report:fillRepStudents,analysis:renderAnalysis,write:()=>{try{renderRoster();loadSession();}catch(e){}}}[CURVIEW]||(()=>{}))();}
 function cloudPush(){if(!SYNC.connected||SYNC.applying||!SYNC.ref)return;clearTimeout(SYNC.pushTimer);SYNC.pushTimer=setTimeout(()=>{try{SYNC.ref.set(Object.assign({},DB,{_by:SYNC.clientId,_ts:firebase.database.ServerValue.TIMESTAMP}));}catch(e){}},450);}
@@ -837,7 +843,7 @@ function pushNow(silent){if(!SYNC.ref){if(!silent)toast('먼저 연결하세요'
 function disconnectSync(){try{if(SYNC.ref)SYNC.ref.off();if(SYNC.buildRef)SYNC.buildRef.off();if(SYNC.app)SYNC.app.delete();}catch(e){}SYNC.connected=false;SYNC.ref=null;localStorage.removeItem(FB_KEY);setSyncUI('off','오프라인');const inf=document.getElementById('syncInfo');if(inf)inf.textContent='';toast('동기화 해제됨');}
 document.addEventListener('focusout',()=>{if(SYNC.pending){SYNC.pending=false;setTimeout(rerenderCurrent,120);}});
 
-(function boot(){DB=load();if(!DB||!DB.students||DB.__v!==6){seedDB();}if(!DB.notes)DB.notes=[];if(!DB.withdrawn)DB.withdrawn=[];if(!DB.teacherPw)DB.teacherPw={};refreshBookDL();pickRole('teacher');
+(function boot(){DB=load();if(!DB||!DB.students||DB.__v!==6){seedDB();}normalizeDB(DB);refreshBookDL();pickRole('teacher');
   var vb=document.getElementById('verBadge');if(vb)vb.textContent=APP_VERSION+' · 1차 프로토타입';
   var sc=localStorage.getItem(FB_KEY);
   if(!sc && typeof DEFAULT_FB_CFG!=='undefined' && DEFAULT_FB_CFG && DEFAULT_FB_CFG.databaseURL){try{localStorage.setItem(FB_KEY,JSON.stringify(DEFAULT_FB_CFG));sc=localStorage.getItem(FB_KEY);}catch(e){}}
