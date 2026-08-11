@@ -99,6 +99,10 @@ tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface-2)
 .jcard{border:1px solid var(--line);border-radius:15px;margin-bottom:15px;overflow:hidden;box-shadow:var(--shadow);background:#fff}
 .jhead{background:linear-gradient(180deg,#fdf6ec,#faf1e2);padding:12px 15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .jhead .nm{font-weight:800;font-size:14.5px;letter-spacing:-.2px}
+.jcard .caret{border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;color:#777;width:24px;height:24px;border-radius:7px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.jcard.collapsed .jbody{display:none}
+.jsum{color:#9a7b52;font-size:12px;margin-left:2px;font-weight:600}
+.jcard:not(.collapsed) .jsum{display:none}
 .jhead .tag{font-size:11px;padding:2px 9px;border-radius:20px;background:var(--orange-soft);color:var(--orange-d);font-weight:700}
 .jbody{padding:15px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:820px){.jbody{grid-template-columns:1fr}}
@@ -197,6 +201,9 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
         <button class="btn sm ghost" onclick="toggleAllRoster()">전체선택</button>
         <button class="btn sm" onclick="setupSelected()">선택 학생 일지 세팅 →</button>
         <button class="btn sm ghost" onclick="clearSession()">세팅 초기화</button>
+        <button class="btn sm ghost" onclick="collapseAllCards(true)">모두 접기</button>
+        <button class="btn sm ghost" onclick="collapseAllCards(false)">모두 펼치기</button>
+        <button class="btn sm gray" onclick="printSetup()">🖨 세팅 인쇄</button>
         <span class="mini" id="rosterCount"></span></div>
       <div id="teacherInbox"></div>
       <div class="selrow" id="roster"></div></div>
@@ -324,11 +331,12 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=6, APP_VERSION="v1.5";
+const APP_BUILD=7, APP_VERSION="v1.6";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
 let DB=null, SESSION={role:null,user:null}, CURVIEW='write';
+const COLLAPSED=new Set();
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
 let _c=0;function uid(p){return p+'_'+(Date.now()).toString(36)+(_c++).toString(36)+Math.floor(performance.now()).toString(36);}
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}try{cloudPush();}catch(e){}}
@@ -394,14 +402,14 @@ function buildNav(){const menus={teacher:[["write","수업일지 작성"],["repo
   go(menus[SESSION.role][0][0]);}
 function go(v){CURVIEW=v;document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));document.getElementById('v-'+v).classList.add('active');
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));window.scrollTo(0,0);
-  ({error:initError,export:initExport,dash:renderDash,data:renderData,write:initWrite,notes:renderNotes,students:initStudents,report:initReport,analysis:renderAnalysis}[v]||(()=>{}))();
-  try{if(typeof SYNC!=='undefined'&&SYNC.bufferedRemote&&!writeBusy()){var _b=SYNC.bufferedRemote;SYNC.bufferedRemote=null;applyRemote(_b);}}catch(e){}}
+  ({error:initError,export:initExport,dash:renderDash,data:renderData,write:initWrite,notes:renderNotes,students:initStudents,report:initReport,analysis:renderAnalysis}[v]||(()=>{}))();}
 
 /* 공통 */
-function refreshBookDL(){document.getElementById('bookDL').innerHTML=DB.textbooks.map(b=>`<option value="${b}">`).join('');}
+function sortKo(list){return [...(list||[])].sort((a,b)=>String(a).localeCompare(String(b),'ko'));}
+function refreshBookDL(){document.getElementById('bookDL').innerHTML=sortKo(DB.textbooks).map(b=>`<option value="${b}">`).join('');}
 function bookLabel(b){if(!b)return '';return (b.grade?`${b.book} ${b.grade}`:b.book).trim();}
 function composedBooks(j){return (j.books||[]).map(bookLabel).filter(Boolean);}
-function bookSelectOptions(list,sel){return `<option value="">교재</option>`+list.map(b=>`<option ${b===sel?'selected':''}>${b}</option>`).join('')+`<option value="__custom">+직접입력</option>`;}
+function bookSelectOptions(list,sel){return `<option value="">교재</option>`+sortKo(list).map(b=>`<option ${b===sel?'selected':''}>${b}</option>`).join('')+`<option value="__custom">+직접입력</option>`;}
 
 /* ===== ① 수업일지 ===== */
 function initWrite(){if(!document.getElementById('wDate').value)document.getElementById('wDate').value=todayStr();
@@ -454,8 +462,9 @@ function renderJournals(date){const area=document.getElementById('journalArea');
 function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.division==='초중등부';
   const lessonLbl=isElem?'교재 진도(페이지)/오답(페이지)':'단원명 (필요시 페이지)';const notes=openErrorNotes(j.studentId);const cb=composedBooks(j);
   const ts=j.testSkip||{skipped:false,reason:''};
-  return `<div class="jcard" data-jid="${j.id}">
-   <div class="jhead"><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="tag">${j.division}</span>
+  const bsum=composedBooks(j).join(', ')||'교재 미설정';
+  return `<div class="jcard${COLLAPSED.has(j.id)?' collapsed':''}" data-jid="${j.id}">
+   <div class="jhead"><button class="caret" onclick="toggleCard('${j.id}')" title="접기/펼치기">${COLLAPSED.has(j.id)?'▶':'▼'}</button><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="tag">${j.division}</span><span class="jsum">${bsum}</span>
      <button class="btn sm ghost" style="margin-left:auto" onclick="refreshCarry('${j.id}')">🔄 이전 회차 불러오기</button>
      <label class="mini"><input type="checkbox" ${j.absent?'checked':''} onchange="toggleAbsent('${j.id}',this.checked)" style="width:auto"> 결석</label>
      ${j.done?'<span class="pill p-done">완료저장됨</span>':''}</div>
@@ -538,7 +547,52 @@ function addSubjectCustom(jid){const v=prompt('과목 직접입력:');if(v){cons
 function toggleAbsent(jid,v){J(jid).absent=v;save();renderOne(jid);}
 function setErrNote(id,k,v){const n=DB.errorNotes.find(e=>e.id===id);if(k==='correct')n.correct=v===''?null:+v;if(k==='done')n.status=v?'완료':'미완료';save();}
 function renderOne(jid){const el=document.querySelector(`[data-jid="${jid}"]`);if(el)el.outerHTML=journalCardHTML(J(jid));}
+function toggleCard(jid){const el=document.querySelector(`.jcard[data-jid="${jid}"]`);if(!el)return;const c=el.classList.toggle('collapsed');if(c)COLLAPSED.add(jid);else COLLAPSED.delete(jid);const cr=el.querySelector('.caret');if(cr)cr.textContent=c?'▶':'▼';}
+function collapseAllCards(v){document.querySelectorAll('#journalArea .jcard').forEach(el=>{const jid=el.getAttribute('data-jid');el.classList.toggle('collapsed',v);if(v)COLLAPSED.add(jid);else COLLAPSED.delete(jid);const cr=el.querySelector('.caret');if(cr)cr.textContent=v?'▶':'▼';});}
 function saveAllJournals(date){DB.journals.filter(j=>j.date===date).forEach(j=>j.done=true);save();toast('수업일지 완료 저장 · 미완료 오답/과제는 다음 수업에 이월');}
+/* 세팅된 일지를 인쇄용으로 출력 — 지난과제 수행율/오답/다음과제는 손기록용 빈칸 포함 */
+function printSetup(){
+  const date=document.getElementById('wDate').value,t=document.getElementById('wTeacher').value;
+  const js=DB.journals.filter(j=>j.date===date&&studentById(j.studentId)&&studentById(j.studentId).teacher===t);
+  if(!js.length){toast('세팅된 일지가 없습니다');return;}
+  const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const blocks=js.map(j=>{const s=studentById(j.studentId);
+    const subj=(j.subjects||[]).join(', ')||'-';
+    const books=composedBooks(j).join(', ')||'-';
+    const lesson=(j.lesson||[]).map(l=>`${l.book?esc(l.book)+' ':''}${esc(l.type||'')} ${esc(l.val)||'____________'}`).join('<br>')||'____________';
+    const tests=(j.testSkip&&j.testSkip.skipped)?('테스트 생략'+(j.testSkip.reason?' ('+esc(j.testSkip.reason)+')':'')):((j.tests||[]).map(tt=>`${esc(tt.name)||'테스트'} : ____ / ____　(오답 완료 ☐)`).join('<br>')||'____________');
+    const last=(j.lastHw||[]).length?j.lastHw.map(h=>`${esc(h.book)||''} ${esc(h.val)||''} — 수행율 ____%　(오답 ☐완료)`).join('<br>'):'____________  수행율 ____%';
+    const errs=openErrorNotes(j.studentId).map(n=>`${esc(n.book)} · ${esc(n.unit)} (${n.wrong}문항) — 맞은수 ____ (완료 ☐)`).join('<br>')||'미완료 오답 없음';
+    const next=(j.nextHw||[]).length?j.nextHw.map(h=>`${esc(h.book)||''} ${esc(h.val)||'____________'}`).join('<br>'):'____________';
+    return `<div class="pcard"><div class="ph"><b>${esc(s.name)}</b><span>${esc(s.school)} ${esc(s.grade)}학년 · ${esc(j.division)}</span></div>
+      <table>
+       <tr><th>과목</th><td>${esc(subj)}</td></tr>
+       <tr><th>교재</th><td>${esc(books)}</td></tr>
+       <tr><th>수업</th><td>${lesson}</td></tr>
+       <tr><th>TEST</th><td>${tests}</td></tr>
+       <tr><th>지난과제<br>수행율</th><td>${last}</td></tr>
+       <tr><th>오답<br>수행</th><td>${errs}</td></tr>
+       <tr><th>다음과제</th><td>${next}</td></tr>
+      </table></div>`;}).join('');
+  const html=`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>수업일지 세팅 ${date} ${esc(t)}</title>
+   <style>*{box-sizing:border-box}body{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif;margin:16px;color:#222}
+    h2{font-size:16px;margin:0 0 12px}
+    .pcard{border:1px solid #999;border-radius:8px;margin:0 0 12px;overflow:hidden;page-break-inside:avoid}
+    .ph{background:#f2f2f2;padding:7px 10px;border-bottom:1px solid #ccc;font-size:14px}
+    .ph span{color:#666;font-size:12px;margin-left:8px}
+    table{width:100%;border-collapse:collapse;font-size:12.5px}
+    th{width:88px;text-align:left;background:#fafafa;border:1px solid #ddd;padding:6px 8px;vertical-align:top;font-weight:700;color:#444}
+    td{border:1px solid #ddd;padding:6px 8px;vertical-align:top;line-height:1.8}
+    @media print{body{margin:8mm}}
+   </style></head><body>
+   <h2>수업일지 세팅 · ${date} · ${esc(t)} 선생님 (${js.length}명)</h2>
+   ${blocks}
+   <script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script>
+   </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){toast('팝업이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도하세요');return;}
+  w.document.open();w.document.write(html);w.document.close();
+}
 
 /* ===== ② 오답 입력 ===== */
 function initError(){document.getElementById('eDate').value=todayStr();
@@ -814,49 +868,127 @@ function renderAnalysis(){const at=document.getElementById('anTeacher');if(at&&!
 
 /* ===== Firebase 실시간 동기화 ===== */
 const FB_KEY='kladi_fb_cfg_v1';
-let SYNC={app:null,ref:null,connected:false,clientId:'c'+Math.random().toString(36).slice(2),pushTimer:null,pending:false,applying:false};
+let SYNC={app:null,db:null,ref:null,connected:false,clientId:'c'+Math.random().toString(36).slice(2),pushTimer:null,rrTimer:null,pending:false,applying:false,shadow:null,editingId:null,deferred:{}};
+const V6ROOT='kladi/v6';
+const KEYED=['students','journals','errorNotes','notes','withdrawn'];
 function setSyncUI(state,txt){['syncPill','syncPill2'].forEach(id=>{const el=document.getElementById(id);if(el){el.className='syncpill '+state;el.textContent=txt;}});}
 function extractCfgObj(text){let s=text.indexOf('firebaseConfig');let b=(s>=0)?text.indexOf('{',s):text.indexOf('{');if(b<0)return null;let d=0;for(let i=b;i<text.length;i++){const c=text[i];if(c==='{')d++;else if(c==='}'){d--;if(d===0)return text.slice(b,i+1);}}return null;}
 function parseCfg(text){text=(text||'').trim();if(!text)return null;try{const o=JSON.parse(text);if(o&&typeof o==='object')return o;}catch(e){}const obj=extractCfgObj(text);if(!obj)return null;try{return (new Function('return ('+obj+')'))();}catch(e){}try{return JSON.parse(obj);}catch(e){}return null;}
 function connectSyncFromInput(){const cfg=parseCfg(document.getElementById('fbCfg').value);if(!cfg||!cfg.databaseURL){toast('config가 올바르지 않거나 databaseURL이 없습니다 (Realtime Database 활성화 필요)');return;}localStorage.setItem(FB_KEY,JSON.stringify(cfg));connectSync(cfg,true);}
+function toArr(x){return Array.isArray(x)?x:(x&&typeof x==='object'?Object.keys(x).sort((a,b)=>(+a)-(+b)).map(k=>x[k]):[]);}
+function normalizeDB(d){if(!d||typeof d!=='object')return d;
+  ['students','journals','errorNotes','notes','withdrawn','assistants','subjects','textbooks','teachers'].forEach(k=>{d[k]=toArr(d[k]);});
+  if(!d.teacherPw||typeof d.teacherPw!=='object'||Array.isArray(d.teacherPw))d.teacherPw={};
+  d.journals.forEach(j=>normRec('journals',j));
+  return d;}
+function normRec(coll,r){if(!r||typeof r!=='object')return r;
+  if(coll==='journals'){['subjects','books','lesson','tests','lastHw','nextHw'].forEach(k=>{r[k]=toArr(r[k]);});if(!r.testSkip||typeof r.testSkip!=='object')r.testSkip={skipped:!!(r.testSkip&&r.testSkip.skipped),reason:(r.testSkip&&r.testSkip.reason)||''};}
+  return r;}
+/* 빈 배열/키순서를 정규화해 자기 자신이 올린 변경이 되돌아와도 무한 반영되지 않도록 canonical 문자열 생성 */
+function stableJSON(o){const walk=(x)=>{if(Array.isArray(x))return x.length?x.map(walk):undefined;if(x&&typeof x==='object'){const r={};Object.keys(x).sort().forEach(k=>{const v=walk(x[k]);if(v!==undefined)r[k]=v;});return Object.keys(r).length?r:undefined;}return x;};const w=walk(o);return JSON.stringify(w===undefined?null:w);}
+function configObj(){return {assistants:DB.assistants||[],subjects:DB.subjects||[],textbooks:DB.textbooks||[],teacherPw:DB.teacherPw||{},teachers:DB.teachers||[],__v:6};}
+function skel(){return {students:[],journals:[],errorNotes:[],notes:[],withdrawn:[],assistants:['조교A'],subjects:[],textbooks:[],teacherPw:{},teachers:[],__v:6};}
+function fromV6(v){const d=skel();v=v||{};
+  KEYED.forEach(coll=>{const node=v[coll];d[coll]=node&&typeof node==='object'?Object.keys(node).map(k=>node[k]).filter(Boolean):[];});
+  const cfg=v.config||{};['assistants','subjects','textbooks','teachers'].forEach(k=>{if(cfg[k]!==undefined)d[k]=toArr(cfg[k]);});
+  if(cfg.teacherPw&&typeof cfg.teacherPw==='object'&&!Array.isArray(cfg.teacherPw))d.teacherPw=cfg.teacherPw;
+  return normalizeDB(d);}
+function initShadow(){const sh={config:null};KEYED.forEach(coll=>{sh[coll]={};(DB[coll]||[]).forEach(it=>{if(it&&it.id)sh[coll][it.id]=stableJSON(it);});});sh.config=stableJSON(configObj());SYNC.shadow=sh;}
+function fullUpdates(){const u={};KEYED.forEach(coll=>{(DB[coll]||[]).forEach(it=>{if(it&&typeof it==='object'){if(!it.id)it.id=uid(coll[0]);u[V6ROOT+'/'+coll+'/'+it.id]=it;}});});u[V6ROOT+'/config']=configObj();return u;}
+
 function connectSync(cfg,interactive){
   if(typeof firebase==='undefined'){toast('Firebase를 불러오지 못했습니다 (네트워크 확인)');setSyncUI('err','연결실패');return;}
   try{
     if(SYNC.app){try{SYNC.app.delete();}catch(e){}}
     SYNC.app=firebase.initializeApp(cfg,'kladi_'+Date.now());
-    const db=firebase.database(SYNC.app);
-    SYNC.ref=db.ref('kladi/shared');
+    const db=firebase.database(SYNC.app);SYNC.db=db;
     setSyncUI('wait','연결 중…');
     db.ref('.info/connected').on('value',s=>{ if(s.val()&&SYNC.connected)setSyncUI('on','실시간 동기화'); else if(SYNC.connected)setSyncUI('wait','재연결 중…'); });
-    SYNC.ref.once('value').then(snap=>{
+    db.ref(V6ROOT).once('value').then(async snap=>{
       const v=snap.val();
-      if(!v){ pushNow(true); }
-      else { if(interactive){ if(confirm('클라우드에 저장된 데이터가 있습니다.\n\n[확인] 클라우드 데이터를 불러오기\n[취소] 이 기기 데이터로 클라우드 덮어쓰기')) applyRemote(v); else pushNow(true); } else applyRemote(v); }
-      SYNC.ref.on('value',onRemote);
+      if(v && (v.config||v.students||v.journals)){
+        // 클라우드(v6)에 데이터 있음 → 채택
+        SYNC.applying=true;DB=fromV6(v);try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}SYNC.applying=false;
+      } else {
+        // v6 최초 생성: 기존 blob(kladi/shared) 있으면 그걸로 시드, 없으면 로컬로 시드
+        try{const leg=await db.ref('kladi/shared').once('value');const lv=leg.val();
+          if(lv&&lv.students){const {_ts,_by,...data}=lv;SYNC.applying=true;DB=normalizeDB(data);try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}SYNC.applying=false;}
+        }catch(e){}
+        try{await db.ref().update(fullUpdates());}catch(e){}
+      }
+      initShadow();
+      attachCollListeners(db);
       try{SYNC.buildRef=db.ref('kladi/appBuild');SYNC.buildRef.on('value',bs=>{var rb=bs.val()||0;if(rb>APP_BUILD)showUpdateBanner();else if(APP_BUILD>rb){try{SYNC.buildRef.set(APP_BUILD);}catch(e){}}});}catch(e){}
       SYNC.connected=true; setSyncUI('on','실시간 동기화');
       const inf=document.getElementById('syncInfo'); if(inf)inf.textContent='연결됨 · 이 기기 ID '+SYNC.clientId.slice(0,6);
-      if(interactive)toast('실시간 동기화 연결됨');
+      refreshBookDL();rerenderCurrent();
+      if(interactive)toast('실시간 동기화 연결됨 (레코드 단위)');
     }).catch(e=>{setSyncUI('err','연결실패');toast('연결 실패: databaseURL/보안규칙을 확인하세요');});
   }catch(e){setSyncUI('err','연결실패');toast('연결 오류: config 확인');}
 }
-function onRemote(snap){const v=snap.val();if(!v)return;if(v._by===SYNC.clientId)return;applyRemote(v);}
-function toArr(x){return Array.isArray(x)?x:(x&&typeof x==='object'?Object.keys(x).sort((a,b)=>(+a)-(+b)).map(k=>x[k]):[]);}
-function normalizeDB(d){if(!d||typeof d!=='object')return d;
-  ['students','journals','errorNotes','notes','withdrawn','assistants','subjects','textbooks'].forEach(k=>{d[k]=toArr(d[k]);});
-  if(!d.teacherPw||typeof d.teacherPw!=='object'||Array.isArray(d.teacherPw))d.teacherPw={};
-  d.journals.forEach(j=>{if(!j||typeof j!=='object')return;['subjects','books','lesson','tests','lastHw','nextHw'].forEach(k=>{j[k]=toArr(j[k]);});if(!j.testSkip||typeof j.testSkip!=='object')j.testSkip={skipped:!!(j.testSkip&&j.testSkip.skipped),reason:(j.testSkip&&j.testSkip.reason)||''};});
-  return d;}
-function writeBusy(){return CURVIEW==='write' && !!(document.querySelector('.rchk:checked')||document.querySelector('#journalArea .jcard'));}
-function applyRemote(v){
-  if(writeBusy()){SYNC.bufferedRemote=v;return;}
-  const {_ts,_by,...data}=v;if(!data.students)return;SYNC.applying=true;DB=normalizeDB(data);try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}SYNC.applying=false;refreshBookDL();
-  const ae=document.activeElement; if(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)){SYNC.pending=true;} else rerenderCurrent();}
+function attachCollListeners(db){
+  SYNC.collRefs=[];
+  KEYED.forEach(coll=>{const r=db.ref(V6ROOT+'/'+coll);
+    r.on('child_added',s=>mergeRecord(coll,s.key,s.val()));
+    r.on('child_changed',s=>mergeRecord(coll,s.key,s.val()));
+    r.on('child_removed',s=>removeRecord(coll,s.key));
+    SYNC.collRefs.push(r);});
+  const cr=db.ref(V6ROOT+'/config');cr.on('value',s=>mergeConfig(s.val()));SYNC.collRefs.push(cr);
+}
+function mergeRecord(coll,id,val){
+  if(val==null)return removeRecord(coll,id);
+  if(!val.id)val.id=id;
+  const rec=normRec(coll,val);              // 원격값을 로컬과 동일한 정규화 형태로 (배열 복원)
+  const canon=stableJSON(rec);const sh=SYNC.shadow&&SYNC.shadow[coll];
+  if(sh&&sh[id]===canon)return; // 변화 없음/자기 반향
+  if(coll==='journals'&&SYNC.editingId===id){SYNC.deferred[id]=rec;return;} // 편집 중인 카드면 보류(shadow는 그대로 두어 blur 후 반영)
+  if(sh)sh[id]=canon;
+  const arr=DB[coll]||(DB[coll]=[]);const i=arr.findIndex(x=>x&&x.id===id);
+  if(i>=0)arr[i]=rec;else arr.push(rec);
+  persistLS();scheduleRerender();
+}
+function removeRecord(coll,id){
+  const had=SYNC.shadow&&SYNC.shadow[coll]&&(id in SYNC.shadow[coll]);
+  if(SYNC.shadow&&SYNC.shadow[coll])delete SYNC.shadow[coll][id];
+  const arr=DB[coll]||[];const i=arr.findIndex(x=>x&&x.id===id);
+  if(i>=0){arr.splice(i,1);persistLS();scheduleRerender();}
+  else if(had){persistLS();}
+}
+function mergeConfig(cfg){
+  if(!cfg)return;
+  ['assistants','subjects','textbooks','teachers'].forEach(k=>{if(cfg[k]!==undefined)DB[k]=toArr(cfg[k]);});
+  if(cfg.teacherPw&&typeof cfg.teacherPw==='object'&&!Array.isArray(cfg.teacherPw))DB.teacherPw=cfg.teacherPw;
+  const canon=stableJSON(configObj());   // 정규화된 로컬 형태로 비교(자기 반향/불필요 재푸시 방지)
+  if(SYNC.shadow&&SYNC.shadow.config===canon)return;
+  if(SYNC.shadow)SYNC.shadow.config=canon;
+  persistLS();refreshBookDL();scheduleRerender();
+}
+function persistLS(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){}}
+function scheduleRerender(){clearTimeout(SYNC.rrTimer);SYNC.rrTimer=setTimeout(()=>{const ae=document.activeElement;if(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)){SYNC.pending=true;return;}rerenderCurrent();},250);}
 function rerenderCurrent(){({error:initError,export:initExport,dash:renderDash,data:renderData,notes:renderNotes,students:initStudents,report:fillRepStudents,analysis:renderAnalysis,write:()=>{try{renderRoster();loadSession();}catch(e){}}}[CURVIEW]||(()=>{}))();}
-function cloudPush(){if(!SYNC.connected||SYNC.applying||!SYNC.ref)return;clearTimeout(SYNC.pushTimer);SYNC.pushTimer=setTimeout(()=>{try{SYNC.ref.set(Object.assign({},DB,{_by:SYNC.clientId,_ts:firebase.database.ServerValue.TIMESTAMP}));}catch(e){}},450);}
-function pushNow(silent){if(!SYNC.ref){if(!silent)toast('먼저 연결하세요');return;}try{SYNC.ref.set(Object.assign({},DB,{_by:SYNC.clientId,_ts:firebase.database.ServerValue.TIMESTAMP}));if(!silent)toast('클라우드로 올렸습니다');}catch(e){if(!silent)toast('업로드 실패');}}
-function disconnectSync(){try{if(SYNC.ref)SYNC.ref.off();if(SYNC.buildRef)SYNC.buildRef.off();if(SYNC.app)SYNC.app.delete();}catch(e){}SYNC.connected=false;SYNC.ref=null;localStorage.removeItem(FB_KEY);setSyncUI('off','오프라인');const inf=document.getElementById('syncInfo');if(inf)inf.textContent='';toast('동기화 해제됨');}
-document.addEventListener('focusout',()=>{if(SYNC.pending){SYNC.pending=false;setTimeout(rerenderCurrent,120);}});
+/* 변경분만 각 레코드 경로에 기록 → 동시 편집 시 서로 덮어쓰지 않음 */
+function cloudPush(){if(!SYNC.connected||SYNC.applying||!SYNC.db)return;clearTimeout(SYNC.pushTimer);SYNC.pushTimer=setTimeout(diffPush,450);}
+function diffPush(){
+  if(!SYNC.connected||!SYNC.db||!SYNC.shadow)return;
+  const u={};let n=0;
+  KEYED.forEach(coll=>{const cur={};
+    (DB[coll]||[]).forEach(it=>{if(!it||typeof it!=='object')return;if(!it.id)it.id=uid(coll[0]);cur[it.id]=1;
+      const js=stableJSON(it);
+      if(SYNC.shadow[coll][it.id]!==js){u[V6ROOT+'/'+coll+'/'+it.id]=it;SYNC.shadow[coll][it.id]=js;if(coll==='journals'&&SYNC.deferred[it.id])delete SYNC.deferred[it.id];n++;}});
+    Object.keys(SYNC.shadow[coll]).forEach(id=>{if(!(id in cur)){u[V6ROOT+'/'+coll+'/'+id]=null;delete SYNC.shadow[coll][id];n++;}});
+  });
+  const cfg=configObj(),cjs=stableJSON(cfg);
+  if(SYNC.shadow.config!==cjs){u[V6ROOT+'/config']=cfg;SYNC.shadow.config=cjs;n++;}
+  if(!n)return;
+  try{SYNC.db.ref().update(u);}catch(e){}
+}
+function pushNow(silent){if(!SYNC.db){if(!silent)toast('먼저 연결하세요');return;}try{SYNC.db.ref().update(fullUpdates()).then(()=>{initShadow();});if(!silent)toast('클라우드로 올렸습니다');}catch(e){if(!silent)toast('업로드 실패');}}
+function disconnectSync(){try{if(SYNC.collRefs)SYNC.collRefs.forEach(r=>r.off());if(SYNC.buildRef)SYNC.buildRef.off();if(SYNC.app)SYNC.app.delete();}catch(e){}SYNC.connected=false;SYNC.db=null;SYNC.collRefs=null;localStorage.removeItem(FB_KEY);setSyncUI('off','오프라인');const inf=document.getElementById('syncInfo');if(inf)inf.textContent='';toast('동기화 해제됨');}
+/* 편집 중인 일지 카드 추적 (원격 변경이 입력 중인 값을 덮지 않도록) */
+document.addEventListener('focusin',e=>{const c=e.target&&e.target.closest?e.target.closest('#journalArea .jcard'):null;SYNC.editingId=c?c.getAttribute('data-jid'):null;});
+document.addEventListener('focusout',()=>{setTimeout(()=>{const ae=document.activeElement;const c=(ae&&ae.closest)?ae.closest('#journalArea .jcard'):null;SYNC.editingId=c?c.getAttribute('data-jid'):null;
+  Object.keys(SYNC.deferred).forEach(id=>{if(id!==SYNC.editingId){const v=SYNC.deferred[id];delete SYNC.deferred[id];mergeRecord('journals',id,v);}});
+  if(SYNC.pending){SYNC.pending=false;setTimeout(rerenderCurrent,120);}},40);});
 
 (function boot(){DB=load();if(!DB||!DB.students||DB.__v!==6){seedDB();}normalizeDB(DB);refreshBookDL();pickRole('teacher');
   var vb=document.getElementById('verBadge');if(vb)vb.textContent=APP_VERSION+' · 1차 프로토타입';
