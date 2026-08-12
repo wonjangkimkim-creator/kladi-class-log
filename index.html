@@ -331,7 +331,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=7, APP_VERSION="v1.6";
+const APP_BUILD=8, APP_VERSION="v1.7";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -483,8 +483,8 @@ function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.divi
         <label class="mini" style="margin-left:auto"><input type="checkbox" ${ts.skipped?'checked':''} onchange="setTestSkip('${j.id}',this.checked)" style="width:auto"> 테스트 생략</label></div>
        ${ts.skipped?`<input value="${ts.reason||''}" placeholder="생략 이유 (예: 시간 부족)" onchange="setTestSkipReason('${j.id}',this.value)">`
          :`<div id="tests_${j.id}">${(j.tests||[]).map((t,i)=>testRow(j.id,i,t)).join('')}</div><button class="addbtn" onclick="addTest('${j.id}')">＋ 테스트 추가</button>`}</div>
-     <div class="field"><div class="flab"><span class="k">오답</span>조교 입력 자동연동 · 맞은수/완료</div>
-       <div id="errs_${j.id}">${notes.length?notes.map(n=>errNoteRow(j.id,n)).join(''):'<div class="mini">미완료 오답노트 없음</div>'}</div></div>
+     <div class="field"><div class="flab"><span class="k">오답</span>조교 입력 자동연동 · 맞은수/완료<button class="addbtn" style="margin-left:auto" onclick="addErrInline('${j.id}')">＋ 오답 추가</button></div>
+       <div id="errs_${j.id}">${notes.length?notes.map(n=>errNoteRow(j.id,n)).join(''):'<div class="mini">미완료 오답노트 없음 (조교 미입력 시 ＋ 오답 추가로 직접 입력)</div>'}</div></div>
      <div class="field"><div class="flab"><span class="k">지난과제</span>이전 다음과제 자동이월 · 직접입력 가능<button class="addbtn" style="margin-left:auto" onclick="addLastHw('${j.id}')">＋ 과제 추가</button></div>
        <div id="lhw_${j.id}">${(j.lastHw||[]).length?j.lastHw.map((h,i)=>lastHwRow(j.id,i,h,cb)).join(''):'<div class="mini">이월된 과제 없음 (직접 추가 가능)</div>'}</div></div>
      <div class="field"><div class="flab"><span class="k">다음과제</span>교재 기반 · 추가입력<button class="addbtn" style="margin-left:auto" onclick="seedNextHw('${j.id}')">교재로 채우기</button></div>
@@ -509,10 +509,26 @@ function testRow(jid,i,t){t=t||{name:'',scoreType:'분수',correct:'',total:'',s
     <select onchange="setObj('${jid}','tests',${i},'scoreType',this.value);renderOne('${jid}')"><option ${frac?'selected':''}>분수</option><option ${!frac?'selected':''}>점수</option></select>
     ${frac?`<span class="row" style="gap:4px"><input type="number" value="${t.correct||''}" placeholder="맞은" style="width:60px" onchange="setObj('${jid}','tests',${i},'correct',this.value)"><span>/</span><input type="number" value="${t.total||''}" placeholder="전체" style="width:60px" onchange="setObj('${jid}','tests',${i},'total',this.value)"></span>`:`<input value="${t.score||''}" placeholder="점수" onchange="setObj('${jid}','tests',${i},'score',this.value)">`}
     <select onchange="setObj('${jid}','tests',${i},'errDone',this.value)"><option ${t.errDone==='완료'?'selected':''}>완료</option><option ${t.errDone==='미완료'?'selected':''}>미완료</option></select></div></div>`;}
-function errNoteRow(jid,n){return `<div class="itemrow" style="grid-template-columns:1fr 66px auto">
+function errNoteRow(jid,n){
+  if(n.byTeacher){const cb=composedBooks(J(jid));const opts=[...new Set([...cb,n.book].filter(Boolean))];
+   return `<div class="itemrow" style="grid-template-columns:1.1fr 1.2fr 58px 58px auto;background:var(--orange-soft);border-radius:9px;padding:5px 6px;margin-bottom:5px">
+    <select onchange="setErrNoteField('${n.id}','book',this.value,'${jid}')"><option value="">교재</option>${sortKo(opts).map(o=>`<option ${o===n.book?'selected':''}>${o}</option>`).join('')}<option value="__custom">+직접입력</option></select>
+    <input value="${(n.unit||'').replace(/"/g,'&quot;')}" placeholder="단원명" onchange="setErrNoteField('${n.id}','unit',this.value,'${jid}')">
+    <input type="number" min="1" value="${n.wrong||''}" placeholder="문항" title="오답 문항수" onchange="setErrNoteField('${n.id}','wrong',this.value,'${jid}')">
+    <input type="number" min="0" max="${n.wrong||''}" placeholder="맞은" value="${n.correct??''}" onchange="setErrNote('${n.id}','correct',this.value)">
+    <span class="row" style="gap:4px;align-items:center"><label class="mini" style="display:flex;gap:3px;align-items:center"><input type="checkbox" style="width:auto" ${n.status==='완료'?'checked':''} onchange="setErrNote('${n.id}','done',this.checked)">완료</label><button class="x" title="삭제" onclick="delErrNote('${n.id}','${jid}')">×</button></span></div>`;}
+  return `<div class="itemrow" style="grid-template-columns:1fr 66px auto">
    <span class="mini">${n.book} · ${n.unit} <b>(${n.wrong}문항)</b></span>
    <input type="number" min="0" max="${n.wrong}" placeholder="맞은수" value="${n.correct??''}" onchange="setErrNote('${n.id}','correct',this.value)">
    <label class="mini" style="display:flex;gap:3px;align-items:center"><input type="checkbox" style="width:auto" ${n.status==='완료'?'checked':''} onchange="setErrNote('${n.id}','done',this.checked)">완료</label></div>`;}
+function addErrInline(jid){const j=J(jid);if(!j)return;const author=SESSION.user||document.getElementById('wTeacher').value||'선생님';
+  DB.errorNotes.unshift({id:uid('e'),date:j.date,studentId:j.studentId,book:'',unit:'',wrong:1,correct:null,status:'미완료',assistant:author,byTeacher:true});
+  save();renderOne(jid);}
+function setErrNoteField(id,k,v,jid){const n=DB.errorNotes.find(e=>e.id===id);if(!n)return;
+  if(k==='book'){if(v==='__custom'){let c=prompt('교재 직접입력 (예: 쎈 3-1):');if(c){c=c.trim();if(c&&!DB.textbooks.includes(c)){DB.textbooks.push(c);refreshBookDL();}n.book=c;}save();renderOne(jid);return;}n.book=v;save();return;}
+  if(k==='wrong'){n.wrong=parseInt(v)||0;save();return;}
+  n[k]=v;save();}
+function delErrNote(id,jid){const n=DB.errorNotes.find(e=>e.id===id);if(n&&n.byTeacher===undefined){if(!confirm('조교가 입력한 오답노트입니다. 삭제할까요?'))return;}DB.errorNotes=DB.errorNotes.filter(e=>e.id!==id);save();renderOne(jid);}
 function lastHwRow(jid,i,h,cb){const opts=[...new Set([...cb,h.book].filter(Boolean))];
   return `<div class="itemrow" style="grid-template-columns:1fr 1fr 96px 72px auto">
   <select onchange="setLastBook('${jid}',${i},this.value)"><option value="">교재</option>${opts.map(o=>`<option ${o===h.book?'selected':''}>${o}</option>`).join('')}<option value="__custom">+직접입력</option></select>
