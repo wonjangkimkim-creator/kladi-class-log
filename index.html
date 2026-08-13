@@ -100,6 +100,11 @@ tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface-2)
 .jhead{background:linear-gradient(180deg,#fdf6ec,#faf1e2);padding:12px 15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .jhead .nm{font-weight:800;font-size:14.5px;letter-spacing:-.2px}
 .jcard .caret{border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;color:#777;width:24px;height:24px;border-radius:7px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.jcard .ord{display:inline-flex;gap:2px}
+.jcard .ordb{border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;color:#777;width:22px;height:22px;border-radius:6px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.jcard .ordb:hover{border-color:var(--orange);color:var(--orange-d)}
+.smemo{font-size:11.5px;color:#8a6d3b;background:#fff7ea;border:1px dashed #e6c98f;border-radius:12px;padding:2px 9px;cursor:pointer;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smemo:hover{background:#fdeccd;border-color:var(--orange)}
 .jcard.collapsed .jbody{display:none}
 .jsum{color:#9a7b52;font-size:12px;margin-left:2px;font-weight:600}
 .jcard:not(.collapsed) .jsum{display:none}
@@ -331,7 +336,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=8, APP_VERSION="v1.7";
+const APP_BUILD=9, APP_VERSION="v1.8";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -406,6 +411,7 @@ function go(v){CURVIEW=v;document.querySelectorAll('.view').forEach(e=>e.classLi
 
 /* 공통 */
 function sortKo(list){return [...(list||[])].sort((a,b)=>String(a).localeCompare(String(b),'ko'));}
+function H(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function refreshBookDL(){document.getElementById('bookDL').innerHTML=sortKo(DB.textbooks).map(b=>`<option value="${b}">`).join('');}
 function bookLabel(b){if(!b)return '';return (b.grade?`${b.book} ${b.grade}`:b.book).trim();}
 function composedBooks(j){return (j.books||[]).map(bookLabel).filter(Boolean);}
@@ -449,13 +455,14 @@ function applyCarry(j){const prev=prevJournal(j.studentId,j.date);if(!prev)retur
   if(!(j.lesson||[]).length)j.lesson=composedBooks(j).map(bl=>({book:bl,type:'진도',val:''}));}
 function ensureJournal(date,sid){let j=DB.journals.find(x=>x.date===date&&x.studentId===sid);const s=studentById(sid);
   if(j){if(!j.done&&isEmptyJournal(j))applyCarry(j);save();return j;}
-  j={id:uid('j'),date,studentId:sid,teacher:s.teacher,division:s.division,subjects:[],books:[],lesson:[],tests:[],testSkip:{skipped:false,reason:''},lastHw:[],nextHw:[],absent:false,done:false};
+  const seq=DB.journals.filter(x=>x.date===date&&(studentById(x.studentId)||{}).teacher===s.teacher).reduce((m,x)=>Math.max(m,(x.seq==null?-1:x.seq)),-1)+1;
+  j={id:uid('j'),date,studentId:sid,teacher:s.teacher,division:s.division,seq,subjects:[],books:[],lesson:[],tests:[],testSkip:{skipped:false,reason:''},lastHw:[],nextHw:[],absent:false,done:false};
   applyCarry(j);DB.journals.push(j);save();return j;}
 function refreshCarry(jid){applyCarry(J(jid));save();renderOne(jid);toast('이전 회차 내용을 다시 불러왔습니다');}
 function openErrorNotes(sid){return DB.errorNotes.filter(e=>e.studentId===sid&&e.status==='미완료');}
 
 function renderJournals(date){const area=document.getElementById('journalArea');const t=document.getElementById('wTeacher').value;
-  const js=DB.journals.filter(j=>j.date===date&&studentById(j.studentId)&&studentById(j.studentId).teacher===t);
+  const js=DB.journals.filter(j=>j.date===date&&studentById(j.studentId)&&studentById(j.studentId).teacher===t).sort((a,b)=>(a.seq??1e9)-(b.seq??1e9));
   if(!js.length){area.innerHTML='<div class="card"><div class="empty">이 날짜에 세팅된 일지가 없습니다. 위에서 학생을 선택하고 세팅하세요.</div></div>';return;}
   area.innerHTML=js.map(j=>journalCardHTML(j)).join('')+`<div class="row" style="justify-content:flex-end"><button class="btn good" onclick="saveAllJournals('${date}')">✔ 전체 완료 저장</button></div>`;}
 
@@ -464,7 +471,7 @@ function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.divi
   const ts=j.testSkip||{skipped:false,reason:''};
   const bsum=composedBooks(j).join(', ')||'교재 미설정';
   return `<div class="jcard${COLLAPSED.has(j.id)?' collapsed':''}" data-jid="${j.id}">
-   <div class="jhead"><button class="caret" onclick="toggleCard('${j.id}')" title="접기/펼치기">${COLLAPSED.has(j.id)?'▶':'▼'}</button><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="tag">${j.division}</span><span class="jsum">${bsum}</span>
+   <div class="jhead"><button class="caret" onclick="toggleCard('${j.id}')" title="접기/펼치기">${COLLAPSED.has(j.id)?'▶':'▼'}</button><span class="ord"><button class="ordb" onclick="moveJournal('${j.id}',-1)" title="위로">↑</button><button class="ordb" onclick="moveJournal('${j.id}',1)" title="아래로">↓</button></span><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="smemo" onclick="editMemo('${s.id}','${j.id}')" title="클릭하여 메모/특이사항 입력">${s.memo?('📝 '+H(s.memo)):'📝 메모'}</span><span class="tag">${j.division}</span><span class="jsum">${bsum}</span>
      <button class="btn sm ghost" style="margin-left:auto" onclick="refreshCarry('${j.id}')">🔄 이전 회차 불러오기</button>
      <label class="mini"><input type="checkbox" ${j.absent?'checked':''} onchange="toggleAbsent('${j.id}',this.checked)" style="width:auto"> 결석</label>
      ${j.done?'<span class="pill p-done">완료저장됨</span>':''}</div>
@@ -565,6 +572,13 @@ function setErrNote(id,k,v){const n=DB.errorNotes.find(e=>e.id===id);if(k==='cor
 function renderOne(jid){const el=document.querySelector(`[data-jid="${jid}"]`);if(el)el.outerHTML=journalCardHTML(J(jid));}
 function toggleCard(jid){const el=document.querySelector(`.jcard[data-jid="${jid}"]`);if(!el)return;const c=el.classList.toggle('collapsed');if(c)COLLAPSED.add(jid);else COLLAPSED.delete(jid);const cr=el.querySelector('.caret');if(cr)cr.textContent=c?'▶':'▼';}
 function collapseAllCards(v){document.querySelectorAll('#journalArea .jcard').forEach(el=>{const jid=el.getAttribute('data-jid');el.classList.toggle('collapsed',v);if(v)COLLAPSED.add(jid);else COLLAPSED.delete(jid);const cr=el.querySelector('.caret');if(cr)cr.textContent=v?'▶':'▼';});}
+function moveJournal(jid,dir){const j=J(jid);if(!j)return;const date=j.date,t=(studentById(j.studentId)||{}).teacher;
+  const list=DB.journals.filter(x=>x.date===date&&(studentById(x.studentId)||{}).teacher===t).sort((a,b)=>(a.seq??1e9)-(b.seq??1e9));
+  list.forEach((x,i)=>{if(x.seq==null)x.seq=i;});
+  const idx=list.findIndex(x=>x.id===jid),sw=idx+dir;if(sw<0||sw>=list.length)return;
+  const tmp=list[idx].seq;list[idx].seq=list[sw].seq;list[sw].seq=tmp;
+  save();renderJournals(date);}
+function editMemo(sid,jid){const s=studentById(sid);if(!s)return;const v=prompt('학생 메모/특이사항 (이름 옆에 표시되고 저장됩니다):',s.memo||'');if(v===null)return;s.memo=v.trim();save();renderOne(jid);}
 function saveAllJournals(date){DB.journals.filter(j=>j.date===date).forEach(j=>j.done=true);save();toast('수업일지 완료 저장 · 미완료 오답/과제는 다음 수업에 이월');}
 /* 세팅된 일지를 인쇄용으로 출력 — 지난과제 수행율/오답/다음과제는 손기록용 빈칸 포함 */
 function printSetup(){
@@ -578,7 +592,8 @@ function printSetup(){
     const lesson=(j.lesson||[]).map(l=>`${l.book?esc(l.book)+' ':''}${esc(l.type||'')} ${esc(l.val)||'____________'}`).join('<br>')||'____________';
     const tests=(j.testSkip&&j.testSkip.skipped)?('테스트 생략'+(j.testSkip.reason?' ('+esc(j.testSkip.reason)+')':'')):((j.tests||[]).map(tt=>`${esc(tt.name)||'테스트'} : ____ / ____　(오답 완료 ☐)`).join('<br>')||'____________');
     const last=(j.lastHw||[]).length?j.lastHw.map(h=>`${esc(h.book)||''} ${esc(h.val)||''} — 수행율 ____%　(오답 ☐완료)`).join('<br>'):'____________  수행율 ____%';
-    const errs=openErrorNotes(j.studentId).map(n=>`${esc(n.book)} · ${esc(n.unit)} (${n.wrong}문항) — 맞은수 ____ (완료 ☐)`).join('<br>')||'미완료 오답 없음';
+    const errList=openErrorNotes(j.studentId);
+    const errs=errList.length?errList.map(n=>{const title=[esc(n.book),esc(n.unit)].filter(Boolean).join(' · ')||'(제목 미입력)';return `${title} <b>(${n.wrong||0}문항)</b> — 맞은수 ____ (완료 ☐)`;}).join('<br>'):'미완료 오답 없음';
     const next=(j.nextHw||[]).length?j.nextHw.map(h=>`${esc(h.book)||''} ${esc(h.val)||'____________'}`).join('<br>'):'____________';
     return `<div class="pcard"><div class="ph"><b>${esc(s.name)}</b><span>${esc(s.school)} ${esc(s.grade)}학년 · ${esc(j.division)}</span></div>
       <table>
