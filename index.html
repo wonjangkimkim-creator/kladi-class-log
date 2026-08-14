@@ -105,6 +105,11 @@ tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface-2)
 .jcard .ordb:hover{border-color:var(--orange);color:var(--orange-d)}
 .smemo{font-size:11.5px;color:#8a6d3b;background:#fff7ea;border:1px dashed #e6c98f;border-radius:12px;padding:2px 9px;cursor:pointer;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .smemo:hover{background:#fdeccd;border-color:var(--orange)}
+.jhead{cursor:grab}
+.jhead:active{cursor:grabbing}
+.jcard.dragging{opacity:.45}
+.jcard.dragover-top{box-shadow:0 -4px 0 -1px var(--orange),var(--shadow)}
+.jcard.dragover-bot{box-shadow:0 4px 0 -1px var(--orange),var(--shadow)}
 .jcard.collapsed .jbody{display:none}
 .jsum{color:#9a7b52;font-size:12px;margin-left:2px;font-weight:600}
 .jcard:not(.collapsed) .jsum{display:none}
@@ -336,7 +341,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=9, APP_VERSION="v1.8";
+const APP_BUILD=10, APP_VERSION="v1.9";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -470,8 +475,8 @@ function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.divi
   const lessonLbl=isElem?'교재 진도(페이지)/오답(페이지)':'단원명 (필요시 페이지)';const notes=openErrorNotes(j.studentId);const cb=composedBooks(j);
   const ts=j.testSkip||{skipped:false,reason:''};
   const bsum=composedBooks(j).join(', ')||'교재 미설정';
-  return `<div class="jcard${COLLAPSED.has(j.id)?' collapsed':''}" data-jid="${j.id}">
-   <div class="jhead"><button class="caret" onclick="toggleCard('${j.id}')" title="접기/펼치기">${COLLAPSED.has(j.id)?'▶':'▼'}</button><span class="ord"><button class="ordb" onclick="moveJournal('${j.id}',-1)" title="위로">↑</button><button class="ordb" onclick="moveJournal('${j.id}',1)" title="아래로">↓</button></span><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="smemo" onclick="editMemo('${s.id}','${j.id}')" title="클릭하여 메모/특이사항 입력">${s.memo?('📝 '+H(s.memo)):'📝 메모'}</span><span class="tag">${j.division}</span><span class="jsum">${bsum}</span>
+  return `<div class="jcard${COLLAPSED.has(j.id)?' collapsed':''}" data-jid="${j.id}" ondragover="dragOver(event,'${j.id}')" ondrop="dragDrop(event,'${j.id}')" ondragleave="dragLeave(event,'${j.id}')">
+   <div class="jhead" draggable="true" ondragstart="dragStart(event,'${j.id}')" ondragend="dragEnd(event)" title="이 줄을 드래그해 순서 이동"><button class="caret" onclick="toggleCard('${j.id}')" title="접기/펼치기">${COLLAPSED.has(j.id)?'▶':'▼'}</button><span class="ord"><button class="ordb" onclick="moveJournal('${j.id}',-1)" title="위로">↑</button><button class="ordb" onclick="moveJournal('${j.id}',1)" title="아래로">↓</button></span><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="smemo" onclick="editMemo('${s.id}','${j.id}')" title="클릭하여 메모/특이사항 입력">${s.memo?('📝 '+H(s.memo)):'📝 메모'}</span><span class="tag">${j.division}</span><span class="jsum">${bsum}</span>
      <button class="btn sm ghost" style="margin-left:auto" onclick="refreshCarry('${j.id}')">🔄 이전 회차 불러오기</button>
      <label class="mini"><input type="checkbox" ${j.absent?'checked':''} onchange="toggleAbsent('${j.id}',this.checked)" style="width:auto"> 결석</label>
      ${j.done?'<span class="pill p-done">완료저장됨</span>':''}</div>
@@ -579,11 +584,29 @@ function moveJournal(jid,dir){const j=J(jid);if(!j)return;const date=j.date,t=(s
   const tmp=list[idx].seq;list[idx].seq=list[sw].seq;list[sw].seq=tmp;
   save();renderJournals(date);}
 function editMemo(sid,jid){const s=studentById(sid);if(!s)return;const v=prompt('학생 메모/특이사항 (이름 옆에 표시되고 저장됩니다):',s.memo||'');if(v===null)return;s.memo=v.trim();save();renderOne(jid);}
+/* 드래그로 순서 이동 (맨 위 이름 바를 잡고 끌기 · 마우스 기준, 터치는 ↑↓ 사용) */
+let DRAGJID=null;
+function dragStart(e,jid){DRAGJID=jid;try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',jid);}catch(_){}
+  const c=document.querySelector('.jcard[data-jid="'+jid+'"]');if(c)c.classList.add('dragging');}
+function dragEnd(){DRAGJID=null;document.querySelectorAll('#journalArea .jcard').forEach(c=>c.classList.remove('dragging','dragover-top','dragover-bot'));}
+function dragOver(e,jid){if(!DRAGJID||DRAGJID===jid)return;e.preventDefault();try{e.dataTransfer.dropEffect='move';}catch(_){}
+  const c=document.querySelector('.jcard[data-jid="'+jid+'"]');if(!c)return;const r=c.getBoundingClientRect();const after=(e.clientY-r.top)>r.height/2;
+  c.classList.toggle('dragover-bot',after);c.classList.toggle('dragover-top',!after);}
+function dragLeave(e,jid){const c=document.querySelector('.jcard[data-jid="'+jid+'"]');if(c)c.classList.remove('dragover-top','dragover-bot');}
+function dragDrop(e,jid){if(!DRAGJID)return;e.preventDefault();const dragged=DRAGJID;let after=false;
+  const c=document.querySelector('.jcard[data-jid="'+jid+'"]');if(c){const r=c.getBoundingClientRect();after=(e.clientY-r.top)>r.height/2;}
+  DRAGJID=null;if(dragged!==jid)reorderTo(dragged,jid,after);else dragEnd();}
+function reorderTo(draggedJid,targetJid,after){const j=J(draggedJid);if(!j)return;const date=j.date,t=(studentById(j.studentId)||{}).teacher;
+  let list=DB.journals.filter(x=>x.date===date&&(studentById(x.studentId)||{}).teacher===t).sort((a,b)=>(a.seq??1e9)-(b.seq??1e9));
+  const from=list.findIndex(x=>x.id===draggedJid);if(from<0)return;const moved=list.splice(from,1)[0];
+  let to=list.findIndex(x=>x.id===targetJid);if(to<0)to=list.length-1;if(after)to+=1;
+  list.splice(Math.max(0,Math.min(to,list.length)),0,moved);
+  list.forEach((x,i)=>x.seq=i);save();renderJournals(date);}
 function saveAllJournals(date){DB.journals.filter(j=>j.date===date).forEach(j=>j.done=true);save();toast('수업일지 완료 저장 · 미완료 오답/과제는 다음 수업에 이월');}
 /* 세팅된 일지를 인쇄용으로 출력 — 지난과제 수행율/오답/다음과제는 손기록용 빈칸 포함 */
 function printSetup(){
   const date=document.getElementById('wDate').value,t=document.getElementById('wTeacher').value;
-  const js=DB.journals.filter(j=>j.date===date&&studentById(j.studentId)&&studentById(j.studentId).teacher===t);
+  const js=DB.journals.filter(j=>j.date===date&&studentById(j.studentId)&&studentById(j.studentId).teacher===t).sort((a,b)=>(a.seq??1e9)-(b.seq??1e9));
   if(!js.length){toast('세팅된 일지가 없습니다');return;}
   const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const blocks=js.map(j=>{const s=studentById(j.studentId);
@@ -595,7 +618,7 @@ function printSetup(){
     const errList=openErrorNotes(j.studentId);
     const errs=errList.length?errList.map(n=>{const title=[esc(n.book),esc(n.unit)].filter(Boolean).join(' · ')||'(제목 미입력)';return `${title} <b>(${n.wrong||0}문항)</b> — 맞은수 ____ (완료 ☐)`;}).join('<br>'):'미완료 오답 없음';
     const next=(j.nextHw||[]).length?j.nextHw.map(h=>`${esc(h.book)||''} ${esc(h.val)||'____________'}`).join('<br>'):'____________';
-    return `<div class="pcard"><div class="ph"><b>${esc(s.name)}</b><span>${esc(s.school)} ${esc(s.grade)}학년 · ${esc(j.division)}</span></div>
+    return `<div class="pcard"><div class="ph"><b>${esc(s.name)}</b><span>${esc(s.school)} ${esc(s.grade)}학년 · ${esc(j.division)}</span>${s.memo?`<span style="color:#a8742a;font-weight:600">　📝 ${esc(s.memo)}</span>`:''}</div>
       <table>
        <tr><th>과목</th><td>${esc(subj)}</td></tr>
        <tr><th>교재</th><td>${esc(books)}</td></tr>
