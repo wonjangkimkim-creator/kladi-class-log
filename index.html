@@ -341,7 +341,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=12, APP_VERSION="v2.1";
+const APP_BUILD=13, APP_VERSION="v2.2";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -717,8 +717,9 @@ function delNote(id){if(confirm('삭제할까요?')){DB.notes=DB.notes.filter(x=
 
 /* ===== ④ 출력 ===== */
 function initExport(){document.getElementById('xDate').value=todayStr();document.getElementById('xTeacher').innerHTML='<option value="">전체 담당</option>'+DB.teachers.map(t=>`<option>${t}</option>`).join('');renderExport();}
-/* 일별 출력의 [오답]: 그 날짜(j.date)에 완료 처리한 오답만 표시 (과거 완료분이 매일 딸려오는 문제 방지) */
-function errSnapshot(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId&&e.status==='완료'&&e.doneDate===j.date).map(e=>`${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong} 오답 완료`);}
+/* 일별 출력의 [오답] (원상복구: 기존 표시 방식). 단, 완료일(doneDate)이 있는 건은 그 날짜에만 표시해 과거 완료분 중복을 줄임.
+   완료일이 없는 기존 데이터는 예전처럼 그대로 표시되어 숨겨지지 않음. */
+function errSnapshot(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId&&!(e.status==='완료'&&e.doneDate&&e.doneDate!==j.date)).map(e=>{if(e.status==='완료'&&e.correct!=null)return `${e.unit} ${e.correct}/${e.wrong} 오답 완료`;return `${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong}${e.status==='미완료'?' (미완료)':''}`;});}
 function journalToBlock(j){const s=studentById(j.studentId);const books=composedBooks(j).join(', ');
   const lesson=(j.lesson||[]).map(l=>`${l.book?l.book+' ':''}${l.val||''}${l.type==='오답'?' 오답':''}`).filter(x=>x.trim()).join(' / ')||'-';
   let tests;const ts=j.testSkip||{};if(ts.skipped)tests=`생략${ts.reason?' ('+ts.reason+')':''}`;
