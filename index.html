@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>수업일지 관리 시스템 (1차 프로토타입)</title>
+<title>클라디수학학원 · 수업일지 관리 시스템</title>
 <meta name="description" content="클라디수학학원(SUMANPEU) 수업일지·오답·테스트·과제 통합 관리 및 학습 분석 시스템">
 <meta name="theme-color" content="#e88836">
 <meta name="robots" content="noindex,nofollow">
@@ -341,7 +341,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=11, APP_VERSION="v2.0";
+const APP_BUILD=12, APP_VERSION="v2.1";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -579,7 +579,7 @@ function seedNextHw(jid){const j=J(jid);const ex=(j.nextHw||[]).map(h=>h.book);c
 function addSubjectToJ(jid){const v=document.getElementById('subjsel_'+jid).value;if(!v)return;const j=J(jid);if(!j.subjects.includes(v))j.subjects.push(v);save();renderOne(jid);}
 function addSubjectCustom(jid){const v=prompt('과목 직접입력:');if(v){const j=J(jid);if(!j.subjects.includes(v))j.subjects.push(v);if(!DB.subjects.includes(v))DB.subjects.push(v);save();renderOne(jid);}}
 function toggleAbsent(jid,v){J(jid).absent=v;save();renderOne(jid);}
-function setErrNote(id,k,v){const n=DB.errorNotes.find(e=>e.id===id);if(k==='correct')n.correct=v===''?null:+v;if(k==='done')n.status=v?'완료':'미완료';save();}
+function setErrNote(id,k,v){const n=DB.errorNotes.find(e=>e.id===id);if(!n)return;if(k==='correct')n.correct=v===''?null:+v;if(k==='done'){n.status=v?'완료':'미완료';if(v){const wd=document.getElementById('wDate');n.doneDate=(wd&&wd.value)||todayStr();}else delete n.doneDate;}save();}
 function renderOne(jid){const el=document.querySelector(`[data-jid="${jid}"]`);if(el)el.outerHTML=journalCardHTML(J(jid));}
 function toggleCard(jid){const el=document.querySelector(`.jcard[data-jid="${jid}"]`);if(!el)return;const c=el.classList.toggle('collapsed');if(c)COLLAPSED.add(jid);else COLLAPSED.delete(jid);const cr=el.querySelector('.caret');if(cr)cr.textContent=c?'▶':'▼';}
 function collapseAllCards(v){document.querySelectorAll('#journalArea .jcard').forEach(el=>{const jid=el.getAttribute('data-jid');el.classList.toggle('collapsed',v);if(v)COLLAPSED.add(jid);else COLLAPSED.delete(jid);const cr=el.querySelector('.caret');if(cr)cr.textContent=v?'▶':'▼';});}
@@ -717,7 +717,8 @@ function delNote(id){if(confirm('삭제할까요?')){DB.notes=DB.notes.filter(x=
 
 /* ===== ④ 출력 ===== */
 function initExport(){document.getElementById('xDate').value=todayStr();document.getElementById('xTeacher').innerHTML='<option value="">전체 담당</option>'+DB.teachers.map(t=>`<option>${t}</option>`).join('');renderExport();}
-function errSnapshot(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId).map(e=>{if(e.status==='완료'&&e.correct!=null)return `${e.unit} ${e.correct}/${e.wrong} 오답 완료`;return `${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong}${e.status==='미완료'?' (미완료)':''}`;});}
+/* 일별 출력의 [오답]: 그 날짜(j.date)에 완료 처리한 오답만 표시 (과거 완료분이 매일 딸려오는 문제 방지) */
+function errSnapshot(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId&&e.status==='완료'&&e.doneDate===j.date).map(e=>`${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong} 오답 완료`);}
 function journalToBlock(j){const s=studentById(j.studentId);const books=composedBooks(j).join(', ');
   const lesson=(j.lesson||[]).map(l=>`${l.book?l.book+' ':''}${l.val||''}${l.type==='오답'?' 오답':''}`).filter(x=>x.trim()).join(' / ')||'-';
   let tests;const ts=j.testSkip||{};if(ts.skipped)tests=`생략${ts.reason?' ('+ts.reason+')':''}`;
