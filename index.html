@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>클라디수학학원 · 수업일지 관리 시스템</title>
+<title>수업일지 관리 시스템 (1차 프로토타입)</title>
 <meta name="description" content="클라디수학학원(SUMANPEU) 수업일지·오답·테스트·과제 통합 관리 및 학습 분석 시스템">
 <meta name="theme-color" content="#e88836">
 <meta name="robots" content="noindex,nofollow">
@@ -341,7 +341,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=10, APP_VERSION="v1.9";
+const APP_BUILD=11, APP_VERSION="v2.0";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -488,7 +488,7 @@ function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.divi
      <div class="field"><div class="flab"><span class="k">교재</span>교재+ <span class="mini">초·중: 학년·학기(2-1) / 고: 과목(공통수학1)</span></div>
        <div id="books_${j.id}">${(j.books||[]).map((b,i)=>bookRow(j.id,i,b)).join('')||'<span class="mini">교재 없음</span>'}</div>
        <button class="addbtn" onclick="addBook('${j.id}')">＋ 교재 추가</button></div>
-     <div class="field" style="grid-column:1/-1"><div class="flab"><span class="k">수업</span>${lessonLbl}<button class="addbtn" style="margin-left:auto" onclick="seedLesson('${j.id}')">교재로 채우기</button></div>
+     <div class="field" style="grid-column:1/-1"><div class="flab"><span class="k">수업</span>${lessonLbl}<button class="addbtn" style="margin-left:auto" onclick="loadPrevLesson('${j.id}')">↩ 이전 수업 불러오기</button><button class="addbtn" onclick="seedLesson('${j.id}')">교재로 채우기</button></div>
        <div id="lesson_${j.id}">${(j.lesson||[]).map((l,i)=>lessonRow(j.id,i,l,isElem,cb)).join('')}</div>
        <button class="addbtn" onclick="addLesson('${j.id}')">＋ 수업 항목 추가</button></div>
      <div class="field"><div class="flab"><span class="k">TEST</span>테스트명+점수+오답완료
@@ -564,6 +564,12 @@ function setNextBook(jid,i,v){const j=J(jid);j.nextHw[i].book=(v==='__custom')?(
 function setLastBook(jid,i,v){const j=J(jid);j.lastHw[i].book=(v==='__custom')?(prompt('교재 직접입력:')||''):v;save();renderOne(jid);}
 function addLesson(jid){J(jid).lesson.push({book:'',type:'진도',val:''});save();renderOne(jid);}
 function seedLesson(jid){const j=J(jid);const ex=(j.lesson||[]).map(l=>l.book);composedBooks(j).forEach(b=>{if(!ex.includes(b))j.lesson.push({book:b,type:'진도',val:''});});save();renderOne(jid);toast('교재를 수업 항목에 반영');}
+/* 직전 수업의 [수업] 내용(교재·진도/오답·값)을 그대로 현재 수업란에 불러오기 */
+function loadPrevLesson(jid){const j=J(jid);if(!j)return;const prev=prevJournal(j.studentId,j.date);
+  if(!prev||!(prev.lesson||[]).length){toast('직전 수업의 수업 내용이 없습니다');return;}
+  if((j.lesson||[]).length&&!confirm(`현재 수업 내용을 직전 수업(${prev.date}) 내용으로 바꿀까요?`))return;
+  j.lesson=(prev.lesson||[]).map(l=>({book:l.book||'',type:l.type||'진도',val:l.val||''}));
+  save();renderOne(jid);toast(`직전 수업(${prev.date}) 내용을 불러왔습니다`);}
 function addTest(jid){J(jid).tests.push({name:'',scoreType:'분수',correct:'',total:'',score:'',errDone:'완료'});save();renderOne(jid);}
 function setTestSkip(jid,v){const j=J(jid);j.testSkip=j.testSkip||{skipped:false,reason:''};j.testSkip.skipped=v;save();renderOne(jid);}
 function setTestSkipReason(jid,v){const j=J(jid);j.testSkip=j.testSkip||{};j.testSkip.reason=v;save();}
