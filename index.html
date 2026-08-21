@@ -350,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=15, APP_VERSION="v2.4";
+const APP_BUILD=16, APP_VERSION="v2.5";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -476,6 +476,8 @@ function ensureJournal(date,sid){let j=DB.journals.find(x=>x.date===date&&x.stud
   applyCarry(j);DB.journals.push(j);save();return j;}
 function refreshCarry(jid){applyCarry(J(jid));save();renderOne(jid);toast('이전 회차 내용을 다시 불러왔습니다');}
 function openErrorNotes(sid){return DB.errorNotes.filter(e=>e.studentId===sid&&e.status==='미완료');}
+/* 수업일지 카드에 표시할 오답: 미완료(이월 포함) + 그날 완료 처리한 것(당일 유지) */
+function cardErrorNotes(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId&&(e.status==='미완료'||(e.status==='완료'&&e.doneDate===j.date)));}
 
 function renderJournals(date){const area=document.getElementById('journalArea');const t=document.getElementById('wTeacher').value;
   const js=DB.journals.filter(j=>j.date===date&&studentById(j.studentId)&&studentById(j.studentId).teacher===t).sort((a,b)=>(a.seq??1e9)-(b.seq??1e9));
@@ -484,7 +486,7 @@ function renderJournals(date){const area=document.getElementById('journalArea');
   area.innerHTML=js.map(j=>journalCardHTML(j)).join('')+`<div class="row" style="justify-content:flex-end;grid-column:1/-1"><button class="btn good" onclick="saveAllJournals('${date}')">✔ 전체 완료 저장</button></div>`;}
 
 function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.division==='초중등부';
-  const lessonLbl=isElem?'교재 진도(페이지)/오답(페이지)':'단원명 (필요시 페이지)';const notes=openErrorNotes(j.studentId);const cb=composedBooks(j);
+  const lessonLbl=isElem?'교재 진도(페이지)/오답(페이지)':'단원명 (필요시 페이지)';const notes=cardErrorNotes(j);const cb=composedBooks(j);
   const ts=j.testSkip||{skipped:false,reason:''};
   const bsum=composedBooks(j).join(', ')||'교재 미설정';
   return `<div class="jcard${COLLAPSED.has(j.id)?' collapsed':''}" data-jid="${j.id}" ondragover="dragOver(event,'${j.id}')" ondrop="dragDrop(event,'${j.id}')" ondragleave="dragLeave(event,'${j.id}')">
@@ -750,11 +752,19 @@ function delNote(id){if(confirm('삭제할까요?')){DB.notes=DB.notes.filter(x=
 function initExport(){document.getElementById('xDate').value=todayStr();document.getElementById('xTeacher').innerHTML='<option value="">전체 담당</option>'+DB.teachers.map(t=>`<option>${t}</option>`).join('');renderExport();}
 /* 일별 출력의 [오답] (원상복구: 기존 표시 방식). 단, 완료일(doneDate)이 있는 건은 그 날짜에만 표시해 과거 완료분 중복을 줄임.
    완료일이 없는 기존 데이터는 예전처럼 그대로 표시되어 숨겨지지 않음. */
-function errSnapshot(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId&&!(e.status==='완료'&&e.doneDate&&e.doneDate!==j.date)).map(e=>{if(e.status==='완료'&&e.correct!=null)return `${e.unit} ${e.correct}/${e.wrong} 오답 완료`;return `${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong}${e.status==='미완료'?' (미완료)':''}`;});}
+/* 일별 출력 [오답]: 그 수업 날짜의 오답만. 완료는 그날 완료한 것(doneDate=날짜, 없으면 등록일 기준),
+   미완료는 그날 등록된 것만 표시 → 과거 완료분 누적 방지. */
+function errSnapshot(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId).filter(e=>{
+    if(e.status==='완료')return (e.doneDate||e.date)===j.date;
+    return e.date===j.date;
+  }).map(e=>{
+    if(e.status==='완료')return `${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong} 오답 완료`;
+    return `${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong} (미완료)`;
+  });}
 function journalToBlock(j){const s=studentById(j.studentId);const books=composedBooks(j).join(', ');
   const lesson=(j.lesson||[]).map(l=>`${l.book?l.book+' ':''}${l.val||''}${l.type==='오답'?' 오답':''}`).filter(x=>x.trim()).join(' / ')||'-';
   let tests;const ts=j.testSkip||{};if(ts.skipped)tests=(ts.reason&&ts.reason.trim())?ts.reason.trim():'-';
-  else tests=(j.tests||[]).map(t=>{const sc=t.scoreType==='점수'?(t.score||''):((t.correct||'')+'/'+(t.total||''));return `${t.name||''} ${sc}${t.errDone==='미완료'?'(오답미완료)':''}`.trim();}).filter(x=>x).join(', ')||'-';
+  else tests=(j.tests||[]).map(t=>{const sc=t.scoreType==='점수'?(t.score||''):((t.correct||'')+'/'+(t.total||''));return `${t.name||''} ${sc} ${t.errDone==='미완료'?'(오답미완료)':'(오답완료)'}`.trim();}).filter(x=>x).join(', ')||'-';
   const errs=errSnapshot(j).join(', ')||'-';
   const hwRate=(j.lastHw||[]).length?j.lastHw.map(h=>{const st=(h.errDone==='완료')?'오답완료':'오답미완료';return [h.book,h.val,(h.rate!=null?h.rate+'%':''),'('+st+')'].filter(x=>x&&(''+x).trim()).join(' ');}).join(' / '):'-';
   const next=(j.nextHw||[]).filter(h=>h.book||h.val).map(h=>`${h.book?h.book+' – ':''}${h.val||''}`);
