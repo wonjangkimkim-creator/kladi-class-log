@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>클라디수학학원 · 수업일지 관리 시스템</title>
+<title>수업일지 관리 시스템 (1차 프로토타입)</title>
 <meta name="description" content="클라디수학학원(SUMANPEU) 수업일지·오답·테스트·과제 통합 관리 및 학습 분석 시스템">
 <meta name="theme-color" content="#e88836">
 <meta name="robots" content="noindex,nofollow">
@@ -116,6 +116,10 @@ tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface-2)
 .jhead .tag{font-size:11px;padding:2px 9px;border-radius:20px;background:var(--orange-soft);color:var(--orange-d);font-weight:700}
 .jbody{padding:15px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:820px){.jbody{grid-template-columns:1fr}}
+#journalArea.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+#journalArea.twocol .jbody{grid-template-columns:1fr}
+#journalArea.twocol .jcard{margin-bottom:0}
+@media(max-width:1100px){#journalArea.twocol{grid-template-columns:1fr}}
 .field{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--surface-2)}
 .field .flab{font-size:11.5px;font-weight:700;color:var(--orange-d);margin-bottom:9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .field .flab .k{background:var(--grad);color:#fff;padding:2px 8px;border-radius:6px;font-size:11px}
@@ -210,9 +214,11 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
         <label>요일</label><select id="wDay" onchange="renderRoster()"><option value="">전체</option><option>월</option><option>화</option><option>수</option><option>목</option><option>금</option><option>토</option><option>일</option></select>
         <button class="btn sm ghost" onclick="toggleAllRoster()">전체선택</button>
         <button class="btn sm" onclick="setupSelected()">선택 학생 일지 세팅 →</button>
+        <button class="btn sm" onclick="autoSetupByDay()" title="이 날짜 요일에 등원하는 담당 학생 자동 세팅">📅 요일 자동 세팅</button>
         <button class="btn sm ghost" onclick="clearSession()">세팅 초기화</button>
         <button class="btn sm ghost" onclick="collapseAllCards(true)">모두 접기</button>
         <button class="btn sm ghost" onclick="collapseAllCards(false)">모두 펼치기</button>
+        <button class="btn sm ghost" id="twoColBtn" onclick="toggleTwoCol()">⊞ 2단 보기</button>
         <button class="btn sm gray" onclick="printSetup()">🖨 세팅 인쇄</button>
         <span class="mini" id="rosterCount"></span></div>
       <div id="teacherInbox"></div>
@@ -236,7 +242,9 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
         <div style="flex:1;min-width:100px"><label class="mini">오답 문항수</label><input type="number" id="eWrong" min="1" placeholder="예: 8"></div>
         <div style="align-self:flex-end"><button class="btn" onclick="addErrorNote()">＋ 등록</button></div></div>
     </div>
-    <div class="card"><h3>등록된 오답노트 (수정·삭제 가능)</h3><div id="errList"></div></div>
+    <div class="card"><h3>등록된 오답노트 (수정·삭제 가능)</h3>
+      <div class="row" style="margin-bottom:8px"><input id="errSearch" placeholder="🔍 학생 이름·교재·단원 검색" oninput="renderErrList()" style="max-width:260px"></div>
+      <div id="errList"></div></div>
   </section>
 
   <!-- 전달사항 -->
@@ -250,7 +258,8 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
       <p class="sub">선택 날짜의 수업일지를 학생별 블록으로 출력. 복사 또는 엑셀(.xlsx, 오프라인은 CSV).</p>
       <div class="filterbar"><label>날짜</label><input type="date" id="xDate" onchange="renderExport()">
         <label>담당</label><select id="xTeacher" onchange="renderExport()"><option value="">전체</option></select>
-        <button class="btn sm" onclick="downloadExcel()">⬇ 엑셀 다운로드</button></div>
+        <button class="btn sm" onclick="downloadExcel()">⬇ 엑셀 다운로드</button>
+        <button class="btn sm gray" onclick="printExportAll()">🖨 전체 인쇄</button></div>
       <div id="exportArea"></div></div>
   </section>
 
@@ -341,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=13, APP_VERSION="v2.2";
+const APP_BUILD=14, APP_VERSION="v2.3";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -420,7 +429,7 @@ function H(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<'
 function refreshBookDL(){document.getElementById('bookDL').innerHTML=sortKo(DB.textbooks).map(b=>`<option value="${b}">`).join('');}
 function bookLabel(b){if(!b)return '';return (b.grade?`${b.book} ${b.grade}`:b.book).trim();}
 function composedBooks(j){return (j.books||[]).map(bookLabel).filter(Boolean);}
-function bookSelectOptions(list,sel){return `<option value="">교재</option>`+sortKo(list).map(b=>`<option ${b===sel?'selected':''}>${b}</option>`).join('')+`<option value="__custom">+직접입력</option>`;}
+function bookSelectOptions(list,sel){return `<option value="">교재</option><option value="__custom">+직접입력</option>`+sortKo(list).map(b=>`<option ${b===sel?'selected':''}>${b}</option>`).join('');}
 
 /* ===== ① 수업일지 ===== */
 function initWrite(){if(!document.getElementById('wDate').value)document.getElementById('wDate').value=todayStr();
@@ -450,13 +459,13 @@ function clearSession(){const date=document.getElementById('wDate').value,t=docu
   const delIds=new Set(del.map(j=>j.id));DB.journals=DB.journals.filter(j=>!delIds.has(j.id));
   document.querySelectorAll('.rchk').forEach(c=>c.checked=false);
   save();renderRoster();renderJournals(date);toast('세팅 초기화됨');}
-function loadSession(){renderRoster();renderJournals(document.getElementById('wDate').value);}
+function loadSession(){const dateEl=document.getElementById('wDate');const wd=weekdayKo(dateEl.value);const wDay=document.getElementById('wDay');if(wd&&wDay&&[...wDay.options].some(o=>o.value===wd))wDay.value=wd;renderRoster();renderJournals(dateEl.value);}
 function prevJournal(sid,date){return DB.journals.filter(j=>j.studentId===sid&&j.date<date).sort((a,b)=>b.date.localeCompare(a.date))[0];}
 function isEmptyJournal(j){return !(j.subjects&&j.subjects.length)&&!(j.books&&j.books.length)&&!(j.lesson&&j.lesson.length)&&!(j.tests&&j.tests.length)&&!(j.lastHw&&j.lastHw.length)&&!(j.nextHw&&j.nextHw.length);}
 function applyCarry(j){const prev=prevJournal(j.studentId,j.date);if(!prev)return;
   j.subjects=[...(prev.subjects||[])];j.books=(prev.books||[]).map(b=>({...b}));
-  j.lastHw=(prev.nextHw||[]).map(h=>({book:h.book,val:h.val,rate:null,errDone:'미완료'}));
-  (prev.tests||[]).filter(t=>t.errDone==='미완료').forEach(t=>{if(!(j.tests||[]).some(x=>x.name===(t.name||'TEST')+' (이월)'))j.tests.push({name:(t.name||'TEST')+' (이월)',scoreType:t.scoreType||'분수',correct:'',total:t.total||'',score:'',errDone:'미완료'});});
+  j.lastHw=(prev.nextHw||[]).map(h=>({book:h.book,val:h.val,rate:null,errDone:'완료'}));
+  (prev.tests||[]).filter(t=>t.errDone==='미완료').forEach(t=>{if(!(j.tests||[]).some(x=>x.name===(t.name||'TEST')+' (이월)'))j.tests.push({name:(t.name||'TEST')+' (이월)',scoreType:t.scoreType||'분수',correct:t.correct||'',total:t.total||'',score:t.score||'',errDone:'미완료'});});
   if(!(j.lesson||[]).length)j.lesson=composedBooks(j).map(bl=>({book:bl,type:'진도',val:''}));}
 function ensureJournal(date,sid){let j=DB.journals.find(x=>x.date===date&&x.studentId===sid);const s=studentById(sid);
   if(j){if(!j.done&&isEmptyJournal(j))applyCarry(j);save();return j;}
@@ -469,7 +478,8 @@ function openErrorNotes(sid){return DB.errorNotes.filter(e=>e.studentId===sid&&e
 function renderJournals(date){const area=document.getElementById('journalArea');const t=document.getElementById('wTeacher').value;
   const js=DB.journals.filter(j=>j.date===date&&studentById(j.studentId)&&studentById(j.studentId).teacher===t).sort((a,b)=>(a.seq??1e9)-(b.seq??1e9));
   if(!js.length){area.innerHTML='<div class="card"><div class="empty">이 날짜에 세팅된 일지가 없습니다. 위에서 학생을 선택하고 세팅하세요.</div></div>';return;}
-  area.innerHTML=js.map(j=>journalCardHTML(j)).join('')+`<div class="row" style="justify-content:flex-end"><button class="btn good" onclick="saveAllJournals('${date}')">✔ 전체 완료 저장</button></div>`;}
+  area.classList.toggle('twocol',TWOCOL);
+  area.innerHTML=js.map(j=>journalCardHTML(j)).join('')+`<div class="row" style="justify-content:flex-end;grid-column:1/-1"><button class="btn good" onclick="saveAllJournals('${date}')">✔ 전체 완료 저장</button></div>`;}
 
 function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.division==='초중등부';
   const lessonLbl=isElem?'교재 진도(페이지)/오답(페이지)':'단원명 (필요시 페이지)';const notes=openErrorNotes(j.studentId);const cb=composedBooks(j);
@@ -479,7 +489,8 @@ function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.divi
    <div class="jhead" draggable="true" ondragstart="dragStart(event,'${j.id}')" ondragend="dragEnd(event)" title="이 줄을 드래그해 순서 이동"><button class="caret" onclick="toggleCard('${j.id}')" title="접기/펼치기">${COLLAPSED.has(j.id)?'▶':'▼'}</button><span class="ord"><button class="ordb" onclick="moveJournal('${j.id}',-1)" title="위로">↑</button><button class="ordb" onclick="moveJournal('${j.id}',1)" title="아래로">↓</button></span><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="smemo" onclick="editMemo('${s.id}','${j.id}')" title="클릭하여 메모/특이사항 입력">${s.memo?('📝 '+H(s.memo)):'📝 메모'}</span><span class="tag">${j.division}</span><span class="jsum">${bsum}</span>
      <button class="btn sm ghost" style="margin-left:auto" onclick="refreshCarry('${j.id}')">🔄 이전 회차 불러오기</button>
      <label class="mini"><input type="checkbox" ${j.absent?'checked':''} onchange="toggleAbsent('${j.id}',this.checked)" style="width:auto"> 결석</label>
-     ${j.done?'<span class="pill p-done">완료저장됨</span>':''}</div>
+     ${j.done?'<span class="pill p-done">완료저장됨</span>':''}
+     <button class="btn sm crit" onclick="removeJournalCard('${j.id}')" title="이 학생 세팅 제거">✕ 제거</button></div>
    <div class="jbody" ${j.absent?'style="opacity:.45;pointer-events:none"':''}>
      <div class="field"><div class="flab"><span class="k">과목</span>현재 과정 (복수 선택, 자동 유지)</div>
        <div id="subj_${j.id}">${(j.subjects||[]).map((sv,i)=>`<span class="chip">${sv} <span class="x" onclick="delArr('${j.id}','subjects',${i})">×</span></span>`).join('')||'<span class="mini">선택된 과목 없음</span>'}</div>
@@ -510,7 +521,7 @@ function bookRow(jid,i,b){b=b||{book:'',grade:''};return `<div class="itemrow" s
    <button class="x" onclick="delArr('${jid}','books',${i})">×</button></div>`;}
 function lessonRow(jid,i,l,isElem,cb){l=l||{book:'',type:'진도',val:''};const opts=[...new Set([...cb,l.book].filter(Boolean))];
   return `<div class="itemrow" style="grid-template-columns:1.1fr 74px 1.5fr auto">
-   <select onchange="setLessonBook('${jid}',${i},this.value)"><option value="">교재</option>${opts.map(o=>`<option ${o===l.book?'selected':''}>${o}</option>`).join('')}<option value="__custom">+직접입력</option></select>
+   <select onchange="setLessonBook('${jid}',${i},this.value)"><option value="">교재</option><option value="__custom">+직접입력</option>${opts.map(o=>`<option ${o===l.book?'selected':''}>${o}</option>`).join('')}</select>
    <select onchange="setObj('${jid}','lesson',${i},'type',this.value)"><option ${l.type==='진도'?'selected':''}>진도</option><option ${l.type==='오답'?'selected':''}>오답</option></select>
    <input value="${l.val||''}" placeholder="${isElem?'페이지 p.__':'단원명(또는 페이지)'}" onchange="setObj('${jid}','lesson',${i},'val',this.value)">
    <button class="x" onclick="delArr('${jid}','lesson',${i})">×</button></div>`;}
@@ -524,7 +535,7 @@ function testRow(jid,i,t){t=t||{name:'',scoreType:'분수',correct:'',total:'',s
 function errNoteRow(jid,n){
   if(n.byTeacher){const cb=composedBooks(J(jid));const opts=[...new Set([...cb,n.book].filter(Boolean))];
    return `<div class="itemrow" style="grid-template-columns:1.1fr 1.2fr 58px 58px auto;background:var(--orange-soft);border-radius:9px;padding:5px 6px;margin-bottom:5px">
-    <select onchange="setErrNoteField('${n.id}','book',this.value,'${jid}')"><option value="">교재</option>${sortKo(opts).map(o=>`<option ${o===n.book?'selected':''}>${o}</option>`).join('')}<option value="__custom">+직접입력</option></select>
+    <select onchange="setErrNoteField('${n.id}','book',this.value,'${jid}')"><option value="">교재</option><option value="__custom">+직접입력</option>${sortKo(opts).map(o=>`<option ${o===n.book?'selected':''}>${o}</option>`).join('')}</select>
     <input value="${(n.unit||'').replace(/"/g,'&quot;')}" placeholder="단원명" onchange="setErrNoteField('${n.id}','unit',this.value,'${jid}')">
     <input type="number" min="1" value="${n.wrong||''}" placeholder="문항" title="오답 문항수" onchange="setErrNoteField('${n.id}','wrong',this.value,'${jid}')">
     <input type="number" min="0" max="${n.wrong||''}" placeholder="맞은" value="${n.correct??''}" onchange="setErrNote('${n.id}','correct',this.value)">
@@ -543,14 +554,14 @@ function setErrNoteField(id,k,v,jid){const n=DB.errorNotes.find(e=>e.id===id);if
 function delErrNote(id,jid){const n=DB.errorNotes.find(e=>e.id===id);if(n&&n.byTeacher===undefined){if(!confirm('조교가 입력한 오답노트입니다. 삭제할까요?'))return;}DB.errorNotes=DB.errorNotes.filter(e=>e.id!==id);save();renderOne(jid);}
 function lastHwRow(jid,i,h,cb){const opts=[...new Set([...cb,h.book].filter(Boolean))];
   return `<div class="itemrow" style="grid-template-columns:1fr 1fr 96px 72px auto">
-  <select onchange="setLastBook('${jid}',${i},this.value)"><option value="">교재</option>${opts.map(o=>`<option ${o===h.book?'selected':''}>${o}</option>`).join('')}<option value="__custom">+직접입력</option></select>
+  <select onchange="setLastBook('${jid}',${i},this.value)"><option value="">교재</option><option value="__custom">+직접입력</option>${opts.map(o=>`<option ${o===h.book?'selected':''}>${o}</option>`).join('')}</select>
   <input value="${h.val||''}" placeholder="페이지/단원" onchange="setObj('${jid}','lastHw',${i},'val',this.value)">
   <span class="row" style="gap:3px;align-items:center"><input type="number" value="${h.rate??''}" placeholder="과제율" style="width:64px" onchange="setObj('${jid}','lastHw',${i},'rate',this.value)"><span class="mini">%</span></span>
-  <select onchange="setObj('${jid}','lastHw',${i},'errDone',this.value)"><option ${h.errDone==='완료'?'selected':''}>완료</option><option ${h.errDone!=='완료'?'selected':''}>미완료</option></select>
+  <select onchange="setObj('${jid}','lastHw',${i},'errDone',this.value)"><option ${h.errDone!=='미완료'?'selected':''}>완료</option><option ${h.errDone==='미완료'?'selected':''}>미완료</option></select>
   <button class="x" onclick="delArr('${jid}','lastHw',${i})">×</button></div>`;}
 function nextHwRow(jid,i,h,cb){const opts=[...new Set([...cb,h.book].filter(Boolean))];
   return `<div class="itemrow" style="grid-template-columns:1.1fr 1.4fr auto">
-  <select onchange="setNextBook('${jid}',${i},this.value)"><option value="">교재</option>${opts.map(o=>`<option ${o===h.book?'selected':''}>${o}</option>`).join('')}<option value="__custom">+직접입력</option></select>
+  <select onchange="setNextBook('${jid}',${i},this.value)"><option value="">교재</option><option value="__custom">+직접입력</option>${opts.map(o=>`<option ${o===h.book?'selected':''}>${o}</option>`).join('')}</select>
   <input value="${h.val||''}" placeholder="페이지 또는 단원명" onchange="setObj('${jid}','nextHw',${i},'val',this.value)">
   <button class="x" onclick="delArr('${jid}','nextHw',${i})">×</button></div>`;}
 
@@ -573,7 +584,7 @@ function loadPrevLesson(jid){const j=J(jid);if(!j)return;const prev=prevJournal(
 function addTest(jid){J(jid).tests.push({name:'',scoreType:'분수',correct:'',total:'',score:'',errDone:'완료'});save();renderOne(jid);}
 function setTestSkip(jid,v){const j=J(jid);j.testSkip=j.testSkip||{skipped:false,reason:''};j.testSkip.skipped=v;save();renderOne(jid);}
 function setTestSkipReason(jid,v){const j=J(jid);j.testSkip=j.testSkip||{};j.testSkip.reason=v;save();}
-function addLastHw(jid){J(jid).lastHw.push({book:'',val:'',rate:null,errDone:'미완료'});save();renderOne(jid);}
+function addLastHw(jid){J(jid).lastHw.push({book:'',val:'',rate:null,errDone:'완료'});save();renderOne(jid);}
 function addNextHw(jid){J(jid).nextHw.push({book:'',val:''});save();renderOne(jid);}
 function seedNextHw(jid){const j=J(jid);const ex=(j.nextHw||[]).map(h=>h.book);composedBooks(j).forEach(b=>{if(!ex.includes(b))j.nextHw.push({book:b,val:''});});save();renderOne(jid);}
 function addSubjectToJ(jid){const v=document.getElementById('subjsel_'+jid).value;if(!v)return;const j=J(jid);if(!j.subjects.includes(v))j.subjects.push(v);save();renderOne(jid);}
@@ -590,6 +601,22 @@ function moveJournal(jid,dir){const j=J(jid);if(!j)return;const date=j.date,t=(s
   const tmp=list[idx].seq;list[idx].seq=list[sw].seq;list[sw].seq=tmp;
   save();renderJournals(date);}
 function editMemo(sid,jid){const s=studentById(sid);if(!s)return;const v=prompt('학생 메모/특이사항 (이름 옆에 표시되고 저장됩니다):',s.memo||'');if(v===null)return;s.memo=v.trim();save();renderOne(jid);}
+/* 잘못 세팅한 학생 카드 개별 제거 */
+function removeJournalCard(jid){const j=J(jid);if(!j)return;const s=studentById(j.studentId);const date=j.date;
+  if(!confirm(`${s?s.name:'이 학생'}의 ${date} 수업일지 세팅을 제거할까요?${j.done?'\n(완료저장된 일지입니다)':''}`))return;
+  DB.journals=DB.journals.filter(x=>x.id!==jid);save();renderRoster();renderJournals(date);toast('세팅에서 제거됨');}
+/* 요일 자동 세팅: 선택 날짜의 요일에 등원하는 담당 학생을 자동으로 세팅 */
+function weekdayKo(dateStr){if(!dateStr)return '';const d=new Date(dateStr+'T00:00:00');if(isNaN(d))return '';return ['일','월','화','수','목','금','토'][d.getDay()];}
+function autoSetupByDay(){const date=document.getElementById('wDate').value,t=document.getElementById('wTeacher').value;const wd=weekdayKo(date);
+  if(!wd){toast('날짜를 먼저 선택하세요');return;}
+  const list=DB.students.filter(s=>s.teacher===t&&(s.days||'').includes(wd));
+  if(!list.length){toast(`${wd}요일 등원 학생이 없습니다 (학생관리에서 요일 등록)`);return;}
+  list.forEach(s=>ensureJournal(date,s.id));save();renderRoster();renderJournals(date);
+  toast(`${wd}요일 학생 ${list.length}명 자동 세팅`);}
+function setStudentDays(id,v){const s=studentById(id);if(!s)return;s.days=(v||'').trim();save();}
+/* 2단 보기 토글 */
+let TWOCOL=false;
+function toggleTwoCol(){TWOCOL=!TWOCOL;const a=document.getElementById('journalArea');if(a)a.classList.toggle('twocol',TWOCOL);const btn=document.getElementById('twoColBtn');if(btn)btn.textContent=TWOCOL?'▭ 1단 보기':'⊞ 2단 보기';}
 /* 드래그로 순서 이동 (맨 위 이름 바를 잡고 끌기 · 마우스 기준, 터치는 ↑↓ 사용) */
 let DRAGJID=null;
 function dragStart(e,jid){DRAGJID=jid;try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',jid);}catch(_){}
@@ -678,12 +705,14 @@ function editErrorNote(id){const n=DB.errorNotes.find(e=>e.id===id);
   const wrong=prompt('오답 문항수',n.wrong);if(wrong===null)return;
   n.book=book.trim();n.unit=unit.trim();n.wrong=parseInt(wrong)||n.wrong;save();renderErrList();toast('오답노트 수정됨');}
 function delErrorNote(id){if(confirm('이 오답노트를 삭제할까요?')){DB.errorNotes=DB.errorNotes.filter(e=>e.id!==id);save();renderErrList();toast('삭제됨');}}
-function renderErrList(){const rows=DB.errorNotes.map(n=>{const s=studentById(n.studentId);return `<tr>
+function renderErrList(){const qEl=document.getElementById('errSearch');const q=(qEl&&qEl.value||'').trim().toLowerCase();
+  const list=DB.errorNotes.filter(n=>{if(!q)return true;const s=studentById(n.studentId);return (s&&s.name&&s.name.toLowerCase().includes(q))||((n.unit||'').toLowerCase().includes(q))||((n.book||'').toLowerCase().includes(q));});
+  const rows=list.map(n=>{const s=studentById(n.studentId);return `<tr>
   <td>${(n.date||'').slice(5)}</td><td><b>${s?s.name:'?'}</b> <span class="mini">${s?s.school+s.grade:''}</span></td>
   <td>${n.book} · ${n.unit}</td><td class="num">${n.wrong}</td><td class="num">${n.correct??'-'}</td>
   <td>${n.status==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>'}</td><td class="mini">${n.assistant}</td>
   <td><button class="btn sm ghost" onclick="editErrorNote('${n.id}')">수정</button> <button class="btn sm crit" onclick="delErrorNote('${n.id}')">삭제</button></td></tr>`;}).join('');
-  document.getElementById('errList').innerHTML=DB.errorNotes.length?`<table><thead><tr><th>날짜</th><th>학생</th><th>교재·단원</th><th class="num">오답</th><th class="num">맞은</th><th>상태</th><th>작성조교</th><th>관리</th></tr></thead><tbody>${rows}</tbody></table>`:'<div class="empty">등록된 오답노트가 없습니다</div>';}
+  document.getElementById('errList').innerHTML=list.length?`<div class="mini" style="margin-bottom:6px;color:#888">${q?`"${q}" 검색: `:''}${list.length}건</div><table><thead><tr><th>날짜</th><th>학생</th><th>교재·단원</th><th class="num">오답</th><th class="num">맞은</th><th>상태</th><th>작성조교</th><th>관리</th></tr></thead><tbody>${rows}</tbody></table>`:(DB.errorNotes.length?'<div class="empty">검색 결과가 없습니다</div>':'<div class="empty">등록된 오답노트가 없습니다</div>');}
 
 /* ===== ③ 전달사항 ===== */
 function renderNotes(){const area=document.getElementById('notesArea');const role=SESSION.role,me=SESSION.user;
@@ -722,13 +751,31 @@ function initExport(){document.getElementById('xDate').value=todayStr();document
 function errSnapshot(j){return DB.errorNotes.filter(e=>e.studentId===j.studentId&&!(e.status==='완료'&&e.doneDate&&e.doneDate!==j.date)).map(e=>{if(e.status==='완료'&&e.correct!=null)return `${e.unit} ${e.correct}/${e.wrong} 오답 완료`;return `${e.unit} ${e.correct!=null?e.correct+'/':''}${e.wrong}${e.status==='미완료'?' (미완료)':''}`;});}
 function journalToBlock(j){const s=studentById(j.studentId);const books=composedBooks(j).join(', ');
   const lesson=(j.lesson||[]).map(l=>`${l.book?l.book+' ':''}${l.val||''}${l.type==='오답'?' 오답':''}`).filter(x=>x.trim()).join(' / ')||'-';
-  let tests;const ts=j.testSkip||{};if(ts.skipped)tests=`생략${ts.reason?' ('+ts.reason+')':''}`;
+  let tests;const ts=j.testSkip||{};if(ts.skipped)tests=(ts.reason&&ts.reason.trim())?ts.reason.trim():'-';
   else tests=(j.tests||[]).map(t=>{const sc=t.scoreType==='점수'?(t.score||''):((t.correct||'')+'/'+(t.total||''));return `${t.name||''} ${sc}${t.errDone==='미완료'?'(오답미완료)':''}`.trim();}).filter(x=>x).join(', ')||'-';
   const errs=errSnapshot(j).join(', ')||'-';
   const hwRate=(j.lastHw||[]).length?j.lastHw.map(h=>{const st=(h.errDone==='완료')?'오답완료':'오답미완료';return [h.book,h.val,(h.rate!=null?h.rate+'%':''),'('+st+')'].filter(x=>x&&(''+x).trim()).join(' ');}).join(' / '):'-';
   const next=(j.nextHw||[]).filter(h=>h.book||h.val).map(h=>`${h.book?h.book+' – ':''}${h.val||''}`);
   return {name:s.name,school:s.school,grade:s.grade,text:`[과목] ${(j.subjects||[]).join(', ')||'-'}\n[교재] ${books||'-'}\n[수업] ${lesson}\n[TEST] ${tests}\n[오답] ${errs}\n[숙제] ${hwRate}\n[다음숙제]\n${next.join('\n')||'-'}`};}
 function currentExportJournals(){const d=document.getElementById('xDate').value,t=document.getElementById('xTeacher').value;return DB.journals.filter(j=>j.date===d&&!j.absent&&(!t||(studentById(j.studentId)||{}).teacher===t));}
+/* 일별 출력: 그날 전체 수업일지를 한 번에 인쇄 */
+function printExportAll(){const js=currentExportJournals();if(!js.length){toast('출력할 일지가 없습니다');return;}
+  const d=document.getElementById('xDate').value,t=document.getElementById('xTeacher').value||'전체';
+  const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const blocks=js.sort((a,b)=>(a.seq??1e9)-(b.seq??1e9)).map(j=>{const b=journalToBlock(j);const s=studentById(j.studentId);
+    return `<div class="pcard"><div class="ph"><b>${esc(b.name)}</b><span>${esc(b.school)} ${esc(b.grade)}학년${s&&s.memo?' · 📝 '+esc(s.memo):''}</span></div><pre>${esc(b.text)}</pre></div>`;}).join('');
+  const html=`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>수업일지 ${d} ${esc(t)}</title>
+   <style>*{box-sizing:border-box}body{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif;margin:16px;color:#222}
+    h2{font-size:16px;margin:0 0 12px}
+    .pcard{border:1px solid #999;border-radius:8px;margin:0 0 10px;overflow:hidden;page-break-inside:avoid}
+    .ph{background:#f2f2f2;padding:7px 10px;border-bottom:1px solid #ccc;font-size:14px}
+    .ph span{color:#666;font-size:12px;margin-left:8px}
+    pre{margin:0;padding:9px 11px;font-family:inherit;font-size:12.5px;line-height:1.7;white-space:pre-wrap}
+    @media print{body{margin:8mm}}
+   </style></head><body><h2>수업일지 · ${d} · ${esc(t)} (${js.length}명)</h2>${blocks}
+   <script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script></body></html>`;
+  const w=window.open('','_blank');if(!w){toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요');return;}
+  w.document.open();w.document.write(html);w.document.close();}
 function renderExport(){const js=currentExportJournals();const area=document.getElementById('exportArea');if(!js.length){area.innerHTML='<div class="empty">이 날짜에 출력할 수업일지가 없습니다</div>';return;}
   area.innerHTML=js.map(j=>{const b=journalToBlock(j);return `<div class="card" style="margin:12px 0;padding:12px"><div class="row" style="justify-content:space-between"><b>${b.name} <span class="mini">${b.school} ${b.grade}학년</span></b><button class="btn sm ghost" onclick="copyBlock(this)">복사</button></div><code class="blk">${b.text.replace(/</g,'&lt;')}</code></div>`;}).join('');}
 function copyBlock(btn){const code=btn.closest('.card').querySelector('code').innerText;navigator.clipboard.writeText(code).then(()=>toast('복사됨')).catch(()=>{const r=document.createRange();r.selectNode(btn.closest('.card').querySelector('code'));getSelection().removeAllRanges();getSelection().addRange(r);document.execCommand('copy');toast('복사됨');});}
@@ -796,7 +843,8 @@ function initStudents(){
   document.getElementById('stuRegForm').innerHTML=
     `<div style="flex:1;min-width:110px"><label class="mini">이름</label><input id="rgName" placeholder="이름"></div>
      <div style="flex:1;min-width:110px"><label class="mini">학교</label><input id="rgSchool" placeholder="예: 원촌중"></div>
-     <div style="flex:1;min-width:80px"><label class="mini">학년</label><input id="rgGrade" placeholder="예: 2"></div>`+
+     <div style="flex:1;min-width:80px"><label class="mini">학년</label><input id="rgGrade" placeholder="예: 2"></div>
+     <div style="flex:1;min-width:110px"><label class="mini">수업요일</label><input id="rgDays" placeholder="예: 월수금"></div>`+
     (isDir?`<div style="flex:1;min-width:120px"><label class="mini">담당 선생님</label><select id="rgTeacher">${DB.teachers.map(t=>`<option>${t}</option>`).join('')}</select></div>`:'')+
     `<div style="align-self:flex-end"><button class="btn" onclick="registerStudent()">＋ 등록</button></div>`;
   const mt=document.getElementById('mTeacher');
@@ -807,16 +855,18 @@ function initStudents(){
 function registerStudent(){const isDir=SESSION.role==='director';
   const name=document.getElementById('rgName').value.trim();if(!name){toast('이름을 입력하세요');return;}
   const teacher=isDir?document.getElementById('rgTeacher').value:SESSION.user;
-  DB.students.push({id:uid('s'),name,school:document.getElementById('rgSchool').value.trim(),grade:document.getElementById('rgGrade').value.trim(),teacher,division:teacherDivision(teacher),days:'',enrollDate:todayStr()});
-  save();document.getElementById('rgName').value='';document.getElementById('rgSchool').value='';document.getElementById('rgGrade').value='';
+  const daysEl=document.getElementById('rgDays');
+  DB.students.push({id:uid('s'),name,school:document.getElementById('rgSchool').value.trim(),grade:document.getElementById('rgGrade').value.trim(),teacher,division:teacherDivision(teacher),days:(daysEl?daysEl.value.trim():''),enrollDate:todayStr()});
+  save();document.getElementById('rgName').value='';document.getElementById('rgSchool').value='';document.getElementById('rgGrade').value='';if(daysEl)daysEl.value='';
   toast(`${name} 등록 완료 (담당: ${teacher})`);renderManage();}
 function renderManage(){const isDir=SESSION.role==='director';const t=document.getElementById('mTeacher').value;const q=(document.getElementById('mSearch').value||'').trim();
   let list=DB.students.filter(s=>(!t||s.teacher===t)&&(!q||s.name.includes(q)));
   document.getElementById('mCount').textContent=`${list.length}명`;
   const rows=list.map(s=>{const move=isDir?`<select onchange="moveStudent('${s.id}',this.value)" style="width:auto">${DB.teachers.map(x=>`<option ${x===s.teacher?'selected':''}>${x}</option>`).join('')}</select>`:s.teacher;
     const act=`<button class="btn sm ghost" onclick="openReportFor('${s.id}')">리포트</button>`+(isDir?` <button class="btn sm crit" onclick="withdrawStudent('${s.id}')">퇴원</button>`:'');
-    return `<tr><td><b>${s.name}</b></td><td>${s.school||'-'}</td><td>${s.grade||'-'}</td><td>${s.division}</td><td>${move}</td><td>${act}</td></tr>`;}).join('');
-  document.getElementById('manageList').innerHTML=list.length?`<table><thead><tr><th>이름</th><th>학교</th><th>학년</th><th>구분</th><th>담당${isDir?'(이동)':''}</th><th>관리</th></tr></thead><tbody>${rows}</tbody></table>`:'<div class="empty">학생이 없습니다</div>';}
+    const daysCell=`<input value="${(s.days||'').replace(/"/g,'&quot;')}" style="width:82px" placeholder="월수금" title="수업 요일 (변경 시 자동 세팅 반영)" onchange="setStudentDays('${s.id}',this.value)">`;
+    return `<tr><td><b>${s.name}</b></td><td>${s.school||'-'}</td><td>${s.grade||'-'}</td><td>${s.division}</td><td>${daysCell}</td><td>${move}</td><td>${act}</td></tr>`;}).join('');
+  document.getElementById('manageList').innerHTML=list.length?`<table><thead><tr><th>이름</th><th>학교</th><th>학년</th><th>구분</th><th>수업요일</th><th>담당${isDir?'(이동)':''}</th><th>관리</th></tr></thead><tbody>${rows}</tbody></table>`:'<div class="empty">학생이 없습니다</div>';}
 function moveStudent(id,nt){const s=DB.students.find(x=>x.id===id);s.teacher=nt;s.division=teacherDivision(nt);save();toast(`${s.name} → ${nt} 담당으로 이동`);renderManage();}
 function withdrawStudent(id){const s=DB.students.find(x=>x.id===id);if(!s)return;const reason=prompt(`${s.name} 퇴원 처리 — 퇴원 사유(선택)`,'');if(reason===null)return;
   DB.students=DB.students.filter(x=>x.id!==id);DB.withdrawn.push({...s,withdrawnDate:todayStr(),reason:reason||''});save();toast(`${s.name} 퇴원 처리 (퇴원생 보관)`);renderManage();renderWithdrawn();}
