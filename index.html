@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>수업일지 관리 시스템 (1차 프로토타입)</title>
+<title>클라디수학학원 · 수업일지 관리 시스템</title>
 <meta name="description" content="클라디수학학원(SUMANPEU) 수업일지·오답·테스트·과제 통합 관리 및 학습 분석 시스템">
 <meta name="theme-color" content="#e88836">
 <meta name="robots" content="noindex,nofollow">
@@ -350,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=16, APP_VERSION="v2.5";
+const APP_BUILD=17, APP_VERSION="v2.6";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -920,6 +920,7 @@ function buildReport(id,from,end){const s=studentById(id);const inR=d=>(!from||(
   const rated=tests.filter(t=>t.rate!=null);const testAvg=rated.length?Math.round(rated.reduce((a,b)=>a+b.rate,0)/rated.length):null;
   const notes=DB.errorNotes.filter(e=>e.studentId===id&&inR(e.date));const errBook={};notes.forEach(e=>{errBook[e.book]=errBook[e.book]||{t:0,done:0};errBook[e.book].t++;if(e.status==='완료')errBook[e.book].done++;});
   const errMiss=notes.filter(e=>e.status==='미완료').length;const errRate=notes.length?Math.round(notes.filter(e=>e.status==='완료').length/notes.length*100):null;
+  const errRows=notes.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(e=>({date:e.date||'',book:e.book||'',unit:e.unit||'',score:(e.correct!=null?e.correct:'-')+'/'+(e.wrong||0),status:e.status}));
   const hwSeries=act.map(j=>({date:j.date,rate:pctAvg((j.lastHw||[]).map(h=>h.rate))})).filter(x=>x.rate!=null);
   const hwAvg=hwSeries.length?Math.round(hwSeries.reduce((a,b)=>a+b.rate,0)/hwSeries.length):null;
   // insights
@@ -929,7 +930,7 @@ function buildReport(id,from,end){const s=studentById(id);const inR=d=>(!from||(
   if(testAvg!=null)ins.push(`테스트 평균 정답률 ${testAvg}%`);
   const topSubj=Object.entries(subj).sort((a,b)=>b[1]-a[1])[0];if(topSubj)ins.push(`주 진행 과정: ${topSubj[0]} (${topSubj[1]}회)`);
   const rangeApplied=(from||end)?`${from||'처음'} ~ ${end||'현재'}`:'전체 기간';
-  return {s,jn:act.length,period:dates.length?`${dates[0]} ~ ${dates[dates.length-1]}`:'-',rangeApplied,subj,book,tests,testAvg,errBook,errMiss,errRate,notesN:notes.length,hwSeries,hwAvg,ins,withdrawn:isWithdrawn(id)};
+  return {s,jn:act.length,period:dates.length?`${dates[0]} ~ ${dates[dates.length-1]}`:'-',rangeApplied,subj,book,tests,testAvg,errBook,errRows,errMiss,errRate,notesN:notes.length,hwSeries,hwAvg,ins,withdrawn:isWithdrawn(id)};
 }
 function getRepRange(){return [(document.getElementById('repFrom')||{}).value||'',(document.getElementById('repEnd')||{}).value||''];}
 function clearRepRange(){const f=document.getElementById('repFrom'),e=document.getElementById('repEnd');if(f)f.value='';if(e)e.value='';const id=(document.getElementById('repStudent')||{}).value;if(id&&document.getElementById('reportCard'))renderReport(id);}
@@ -949,7 +950,7 @@ function reportHTMLBody(r){const s=r.s;
    <h4>테스트 분석 (평균 정답률 ${r.testAvg??'-'}%)</h4>
    ${r.tests.length?`<table><thead><tr><th>날짜</th><th>테스트</th><th class="num">점수</th><th class="num">정답률</th><th>오답</th></tr></thead><tbody>${r.tests.map(t=>`<tr><td>${t.date.slice(5)}</td><td>${t.name}${t.skip&&t.reason?` (${t.reason})`:''}</td><td class="num">${t.skip?'-':t.score}</td><td class="num">${t.rate!=null?t.rate+'%':'-'}</td><td>${t.skip?'<span class="mini">생략</span>':(t.errDone==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>')}</td></tr>`).join('')}</tbody></table>`:'<div class="mini">테스트 기록 없음</div>'}
    <h4>오답노트 분석 (총 ${r.notesN}건 · 미완료 ${r.errMiss}건)</h4>
-   ${Object.keys(r.errBook).length?`<table><thead><tr><th>교재</th><th class="num">오답 건수</th><th class="num">완료</th><th class="num">완료율</th></tr></thead><tbody>${Object.entries(r.errBook).map(([b,o])=>`<tr><td>${b}</td><td class="num">${o.t}</td><td class="num">${o.done}</td><td class="num">${Math.round(o.done/o.t*100)}%</td></tr>`).join('')}</tbody></table>${r.errMiss>0?`<div class="insight" style="background:var(--crit-bg);color:#a52121;border-color:#f2c9c9">⚠ 미완료 오답 ${r.errMiss}건이 지속되고 있습니다.</div>`:''}`:'<div class="mini">오답노트 기록 없음</div>'}
+   ${r.errRows.length?`<table><thead><tr><th>날짜</th><th>교재</th><th>단원</th><th class="num">맞은/문항</th><th>상태</th></tr></thead><tbody>${r.errRows.map(e=>`<tr><td>${(e.date||'').slice(5)}</td><td>${e.book||'-'}</td><td>${e.unit||'-'}</td><td class="num">${e.score}</td><td>${e.status==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>'}</td></tr>`).join('')}</tbody></table>${r.errMiss>0?`<div class="insight" style="background:var(--crit-bg);color:#a52121;border-color:#f2c9c9">⚠ 미완료 오답 ${r.errMiss}건이 지속되고 있습니다.</div>`:''}`:'<div class="mini">오답노트 기록 없음</div>'}
    <h4>과제 수행율 흐름</h4>
    ${r.hwSeries.length?r.hwSeries.map(h=>`<div class="repbar"><div>${h.date.slice(5)}</div><div class="t"><div class="f" style="width:${h.rate}%;background:var(--good)"></div></div><div class="num">${h.rate}%</div></div>`).join(''):'<div class="mini">과제 기록 없음</div>'}</div>`;
 }
