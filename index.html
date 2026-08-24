@@ -350,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=17, APP_VERSION="v2.6";
+const APP_BUILD=18, APP_VERSION="v2.7";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -510,10 +510,10 @@ function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.divi
         <label class="mini" style="margin-left:auto"><input type="checkbox" ${ts.skipped?'checked':''} onchange="setTestSkip('${j.id}',this.checked)" style="width:auto"> 테스트 생략</label></div>
        ${ts.skipped?`<input value="${ts.reason||''}" placeholder="생략 이유 (예: 시간 부족)" onchange="setTestSkipReason('${j.id}',this.value)">`
          :`<div id="tests_${j.id}">${(j.tests||[]).map((t,i)=>testRow(j.id,i,t)).join('')}</div><button class="addbtn" onclick="addTest('${j.id}')">＋ 테스트 추가</button>`}</div>
-     <div class="field"><div class="flab"><span class="k">오답</span>조교 입력 자동연동 · 맞은수/완료<button class="addbtn" style="margin-left:auto" onclick="addErrInline('${j.id}')">＋ 오답 추가</button></div>
-       <div id="errs_${j.id}">${notes.length?notes.map(n=>errNoteRow(j.id,n)).join(''):'<div class="mini">미완료 오답노트 없음 (조교 미입력 시 ＋ 오답 추가로 직접 입력)</div>'}</div></div>
      <div class="field"><div class="flab"><span class="k">지난과제</span>이전 다음과제 자동이월 · 직접입력 가능<button class="addbtn" style="margin-left:auto" onclick="addLastHw('${j.id}')">＋ 과제 추가</button></div>
        <div id="lhw_${j.id}">${(j.lastHw||[]).length?j.lastHw.map((h,i)=>lastHwRow(j.id,i,h,cb)).join(''):'<div class="mini">이월된 과제 없음 (직접 추가 가능)</div>'}</div></div>
+     <div class="field"><div class="flab"><span class="k">오답</span>조교 입력 자동연동 · 맞은수/완료<button class="addbtn" style="margin-left:auto" onclick="addErrInline('${j.id}')">＋ 오답 추가</button></div>
+       <div id="errs_${j.id}">${notes.length?notes.map(n=>errNoteRow(j.id,n)).join(''):'<div class="mini">미완료 오답노트 없음 (조교 미입력 시 ＋ 오답 추가로 직접 입력)</div>'}</div></div>
      <div class="field"><div class="flab"><span class="k">다음과제</span>교재 기반 · 추가입력<button class="addbtn" style="margin-left:auto" onclick="seedNextHw('${j.id}')">교재로 채우기</button></div>
        <div id="nhw_${j.id}">${(j.nextHw||[]).map((h,i)=>nextHwRow(j.id,i,h,cb)).join('')}</div>
        <button class="addbtn" onclick="addNextHw('${j.id}')">＋ 과제 추가</button></div>
