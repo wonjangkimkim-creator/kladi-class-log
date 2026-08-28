@@ -350,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=18, APP_VERSION="v2.7";
+const APP_BUILD=19, APP_VERSION="v2.8";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -462,7 +462,8 @@ function clearSession(){const date=document.getElementById('wDate').value,t=docu
 /* 날짜를 바꿔도 요일 필터를 강제하지 않음 → 명단에 담당 학생 전체 표시(보강 등 다른 요일 학생도 수동 선택 가능).
    요일 기반 세팅은 '📅 요일 자동 세팅' 버튼으로만 수행. */
 function loadSession(){const dateEl=document.getElementById('wDate');renderRoster();renderJournals(dateEl.value);}
-function prevJournal(sid,date){return DB.journals.filter(j=>j.studentId===sid&&j.date<date).sort((a,b)=>b.date.localeCompare(a.date))[0];}
+/* 직전 수업일지 = 결석 회차는 건너뛰고 가장 최근의 '출석' 회차 (결석 사이에도 다음과제가 이월되도록) */
+function prevJournal(sid,date){return DB.journals.filter(j=>j.studentId===sid&&j.date<date&&!j.absent).sort((a,b)=>b.date.localeCompare(a.date))[0];}
 function isEmptyJournal(j){return !(j.subjects&&j.subjects.length)&&!(j.books&&j.books.length)&&!(j.lesson&&j.lesson.length)&&!(j.tests&&j.tests.length)&&!(j.lastHw&&j.lastHw.length)&&!(j.nextHw&&j.nextHw.length);}
 function applyCarry(j){const prev=prevJournal(j.studentId,j.date);if(!prev)return;
   j.subjects=[...(prev.subjects||[])];j.books=(prev.books||[]).map(b=>({...b}));
@@ -704,6 +705,7 @@ function addErrorNote(){const s=studentById(document.getElementById('eStudent').
   DB.errorNotes.unshift({id:uid('e'),date:document.getElementById('eDate').value,studentId:s.id,book,unit,wrong,correct:null,status:'미완료',assistant:SESSION.user||'조교'});
   save();document.getElementById('eUnit').value='';document.getElementById('eWrong').value='';document.getElementById('eBook').value='';
   toast(`${s.name} 오답노트 등록 (작성:${SESSION.user}) → 수업일지 자동표출`);renderErrList();}
+function setErrNoteStudent(id,sid){const n=DB.errorNotes.find(e=>e.id===id);if(!n)return;const s=studentById(sid);n.studentId=sid;save();renderErrList();toast(`학생 변경됨${s?' → '+s.name:''}`);}
 function editErrorNote(id){const n=DB.errorNotes.find(e=>e.id===id);
   const book=prompt('교재',n.book);if(book===null)return;const unit=prompt('단원명',n.unit);if(unit===null)return;
   const wrong=prompt('오답 문항수',n.wrong);if(wrong===null)return;
@@ -712,7 +714,7 @@ function delErrorNote(id){if(confirm('이 오답노트를 삭제할까요?')){DB
 function renderErrList(){const qEl=document.getElementById('errSearch');const q=(qEl&&qEl.value||'').trim().toLowerCase();
   const list=DB.errorNotes.filter(n=>{if(!q)return true;const s=studentById(n.studentId);return (s&&s.name&&s.name.toLowerCase().includes(q))||((n.unit||'').toLowerCase().includes(q))||((n.book||'').toLowerCase().includes(q));});
   const rows=list.map(n=>{const s=studentById(n.studentId);return `<tr>
-  <td>${(n.date||'').slice(5)}</td><td><b>${s?s.name:'?'}</b> <span class="mini">${s?s.school+s.grade:''}</span></td>
+  <td>${(n.date||'').slice(5)}</td><td><select onchange="setErrNoteStudent('${n.id}',this.value)" style="max-width:120px" title="학생 변경">${(DB.students.some(st=>st.id===n.studentId)?'':`<option value="${n.studentId}" selected>${s?s.name:'(알수없음)'}</option>`)}${DB.students.map(st=>`<option value="${st.id}" ${st.id===n.studentId?'selected':''}>${st.name} (${st.school}${st.grade})</option>`).join('')}</select></td>
   <td>${n.book} · ${n.unit}</td><td class="num">${n.wrong}</td><td class="num">${n.correct??'-'}</td>
   <td>${n.status==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>'}</td><td class="mini">${n.assistant}</td>
   <td><button class="btn sm ghost" onclick="editErrorNote('${n.id}')">수정</button> <button class="btn sm crit" onclick="delErrorNote('${n.id}')">삭제</button></td></tr>`;}).join('');
@@ -916,8 +918,16 @@ function buildReport(id,from,end){const s=studentById(id);const inR=d=>(!from||(
   const dates=act.map(j=>j.date);
   const subj={};act.forEach(j=>(j.subjects||[]).forEach(x=>subj[x]=(subj[x]||0)+1));
   const book={};act.forEach(j=>composedBooks(j).forEach(b=>book[b]=(book[b]||0)+1));
-  const tests=[];act.forEach(j=>{const ts=j.testSkip||{};if(ts.skipped){tests.push({date:j.date,name:'(생략)',skip:true,reason:ts.reason});}(j.tests||[]).forEach(t=>{const rate=t.total?Math.round(t.correct/t.total*100):null;tests.push({date:j.date,name:t.name||'-',score:t.scoreType==='점수'?(t.score||''):`${t.correct||''}/${t.total||''}`,rate,errDone:t.errDone});});});
-  const rated=tests.filter(t=>t.rate!=null);const testAvg=rated.length?Math.round(rated.reduce((a,b)=>a+b.rate,0)/rated.length):null;
+  const testsRaw=[];act.forEach(j=>{const ts=j.testSkip||{};if(ts.skipped){testsRaw.push({date:j.date,name:'(생략)',skip:true,reason:ts.reason});}(j.tests||[]).forEach(t=>{const rate=t.total?Math.round(t.correct/t.total*100):null;testsRaw.push({date:j.date,name:t.name||'-',score:t.scoreType==='점수'?(t.score||''):`${t.correct||''}/${t.total||''}`,rate,errDone:t.errDone});});});
+  // 이월 테스트 중복 정리: 같은 테스트(이월 표기 제거 기준)로 묶어, 완료가 있으면 완료본 1회만 표시/집계, 없으면(미완료) 그대로 표시
+  const baseName=n=>String(n||'').replace(/\s*\(이월\)/g,'').trim();
+  const tGroups=new Map();testsRaw.forEach(t=>{if(t.skip){tGroups.set('__skip__'+t.date+Math.random(),[t]);return;}const k=baseName(t.name);if(!tGroups.has(k))tGroups.set(k,[]);tGroups.get(k).push(t);});
+  const tests=[];const avgVals=[];
+  tGroups.forEach(arr=>{const done=arr.filter(t=>t.errDone==='완료');
+    if(done.length){const chosen=done.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))[done.length-1];tests.push(chosen);if(chosen.rate!=null)avgVals.push(chosen.rate);}
+    else{arr.forEach(t=>tests.push(t));const rated=arr.filter(t=>t.rate!=null);if(rated.length)avgVals.push(rated[rated.length-1].rate);}});
+  tests.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const testAvg=avgVals.length?Math.round(avgVals.reduce((a,b)=>a+b,0)/avgVals.length):null;
   const notes=DB.errorNotes.filter(e=>e.studentId===id&&inR(e.date));const errBook={};notes.forEach(e=>{errBook[e.book]=errBook[e.book]||{t:0,done:0};errBook[e.book].t++;if(e.status==='완료')errBook[e.book].done++;});
   const errMiss=notes.filter(e=>e.status==='미완료').length;const errRate=notes.length?Math.round(notes.filter(e=>e.status==='완료').length/notes.length*100):null;
   const errRows=notes.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(e=>({date:e.date||'',book:e.book||'',unit:e.unit||'',score:(e.correct!=null?e.correct:'-')+'/'+(e.wrong||0),status:e.status}));
