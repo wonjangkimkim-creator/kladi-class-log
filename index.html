@@ -350,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=19, APP_VERSION="v2.8";
+const APP_BUILD=20, APP_VERSION="v2.9";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -492,7 +492,8 @@ function journalCardHTML(j){const s=studentById(j.studentId);const isElem=j.divi
   const bsum=composedBooks(j).join(', ')||'교재 미설정';
   return `<div class="jcard${COLLAPSED.has(j.id)?' collapsed':''}" data-jid="${j.id}" ondragover="dragOver(event,'${j.id}')" ondrop="dragDrop(event,'${j.id}')" ondragleave="dragLeave(event,'${j.id}')">
    <div class="jhead" draggable="true" ondragstart="dragStart(event,'${j.id}')" ondragend="dragEnd(event)" title="이 줄을 드래그해 순서 이동"><button class="caret" onclick="toggleCard('${j.id}')" title="접기/펼치기">${COLLAPSED.has(j.id)?'▶':'▼'}</button><span class="ord"><button class="ordb" onclick="moveJournal('${j.id}',-1)" title="위로">↑</button><button class="ordb" onclick="moveJournal('${j.id}',1)" title="아래로">↓</button></span><span class="nm">${s.name}</span><span class="mini">${s.school} ${s.grade}학년</span><span class="smemo" onclick="editMemo('${s.id}','${j.id}')" title="클릭하여 메모/특이사항 입력">${s.memo?('📝 '+H(s.memo)):'📝 메모'}</span><span class="tag">${j.division}</span><span class="jsum">${bsum}</span>
-     <button class="btn sm ghost" style="margin-left:auto" onclick="refreshCarry('${j.id}')">🔄 이전 회차 불러오기</button>
+     <button class="btn sm ghost" style="margin-left:auto" onclick="openReportPopup('${s.id}')" title="이 학생 분석 리포트를 새 창으로 열기">📊 리포트</button>
+     <button class="btn sm ghost" onclick="refreshCarry('${j.id}')">🔄 이전 회차 불러오기</button>
      <label class="mini"><input type="checkbox" ${j.absent?'checked':''} onchange="toggleAbsent('${j.id}',this.checked)" style="width:auto"> 결석</label>
      ${j.done?'<span class="pill p-done">완료저장됨</span>':''}
      <button class="btn sm crit" onclick="removeJournalCard('${j.id}')" title="이 학생 세팅 제거">✕ 제거</button></div>
@@ -978,6 +979,20 @@ function reportPNG(id){const el=document.getElementById('reportCard');if(typeof 
   html2canvas(el,{scale:2,backgroundColor:'#fff'}).then(c=>{const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=`${studentById(id).name}_학습리포트.png`;a.click();toast('이미지 저장됨');});}
 function reportHTMLDl(id){const [from,end]=getRepRange();const r=buildReport(id,from,end);const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${r.s.name} 학습 분석 리포트</title><style>body{font-family:system-ui,"Malgun Gothic",sans-serif;margin:0;color:#111;background:#fff}.rhead{background:linear-gradient(135deg,#1a1a2e,#0f2742);color:#fff;padding:24px 28px}h2{font-family:'Noto Serif KR',serif;font-size:20px;margin:0 0 4px;color:#fff}.rmeta{color:rgba(255,255,255,.85);font-size:12.5px}.rbody{padding:22px 28px}h4{font-size:14px;margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid #e88836;color:#d47020}table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px}th,td{border-bottom:1px solid #e5e7eb;padding:7px 8px;text-align:left}.num{text-align:right}.rtiles{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}.rtile{background:#f7f9fc;border:1px solid #e5e7eb;border-radius:9px;padding:10px;min-width:110px}.rtile .l{font-size:10.5px;color:#555}.rtile .v{font-size:19px;font-weight:700}.repbar{display:grid;grid-template-columns:130px 1fr 46px;gap:8px;align-items:center;margin-bottom:5px;font-size:12px}.t{background:#efe9dd;border-radius:5px;height:15px;overflow:hidden}.f{height:100%;background:linear-gradient(90deg,#e88836,#d47020)}.insight{background:#fbf4e9;border:1px solid #f2dcbb;border-radius:8px;padding:10px;font-size:12.5px;margin:8px 0;color:#d47020}.pill{font-size:11px;padding:2px 7px;border-radius:12px}.p-done{background:#e7f6e7;color:#0a7a0a}.p-wait{background:#fdf3d9;color:#8a6300}</style></head><body>${reportHTMLBody(r)}</body></html>`;
   dl(`${r.s.name}_학습리포트.html`,html,'text/html;charset=utf-8');toast('HTML 리포트 저장됨 (공유 가능)');}
+/* 수업일지 화면에서 학생 리포트를 별도 창(팝업)으로 열기 — 페이지 이동 없이 보고 닫기 */
+const REPORT_CSS=`body{font-family:system-ui,"Malgun Gothic",sans-serif;margin:0;color:#111;background:#fff}.rhead{background:linear-gradient(135deg,#1a1a2e,#0f2742);color:#fff;padding:24px 28px}h2{font-size:20px;margin:0 0 4px;color:#fff}.rmeta{color:rgba(255,255,255,.85);font-size:12.5px}.rbody{padding:22px 28px}h4{font-size:14px;margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid #e88836;color:#d47020}table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px}th,td{border-bottom:1px solid #e5e7eb;padding:7px 8px;text-align:left}.num{text-align:right}.rtiles{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}.rtile{background:#f7f9fc;border:1px solid #e5e7eb;border-radius:9px;padding:10px;min-width:110px}.rtile .l{font-size:10.5px;color:#555}.rtile .v{font-size:19px;font-weight:700}.repbar{display:grid;grid-template-columns:130px 1fr 46px;gap:8px;align-items:center;margin-bottom:5px;font-size:12px}.t{background:#efe9dd;border-radius:5px;height:15px;overflow:hidden}.f{height:100%;background:linear-gradient(90deg,#e88836,#d47020)}.insight{background:#fbf4e9;border:1px solid #f2dcbb;border-radius:8px;padding:10px;font-size:12.5px;margin:8px 0;color:#d47020}.pill{font-size:11px;padding:2px 7px;border-radius:12px}.p-done{background:#e7f6e7;color:#0a7a0a}.p-wait{background:#fdf3d9;color:#8a6300}`;
+function openReportPopup(sid){const s=studentById(sid);if(!s){toast('학생 정보를 찾을 수 없습니다');return;}
+  const r=buildReport(sid,'','');
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${s.name} 학습 분석 리포트</title><style>${REPORT_CSS}
+   .rtop{position:sticky;top:0;display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:8px 12px;background:#fff;border-bottom:1px solid #eee;z-index:5}
+   .rtop button{border:1px solid #ddd;background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+   .rtop button.x{background:#e88836;border-color:#e88836;color:#fff}
+   @media print{.rtop{display:none}}</style></head><body>
+   <div class="rtop"><button onclick="window.print()">🖨 인쇄</button><button class="x" onclick="window.close()">✕ 닫기</button></div>
+   ${reportHTMLBody(r)}</body></html>`;
+  const w=window.open('','_blank','width=940,height=1000,scrollbars=yes,resizable=yes');
+  if(!w){toast('팝업이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도하세요');return;}
+  w.document.open();w.document.write(html);w.document.close();}
 function reportLinkInfo(){navigator.clipboard&&navigator.clipboard.writeText(location.href).catch(()=>{});toast('실시간 링크 공유는 2차(서버) 단계에서 지원됩니다. 지금은 HTML/PDF/이미지로 공유하세요.');}
 function saveWithdrawnReport(id){const [from,end]=getRepRange();const r=buildReport(id,from,end);const w=DB.withdrawn.find(x=>x.id===id);if(!w)return;w.report=reportHTMLBody(r);w.reportSavedAt=nowStr();save();toast('퇴원생 학습 분석 리포트 저장됨 (퇴원 원인 분석 자료로 보관)');renderWithdrawn();}
 
