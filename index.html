@@ -350,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=20, APP_VERSION="v2.9";
+const APP_BUILD=21, APP_VERSION="v3.0";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -945,7 +945,7 @@ function buildReport(id,from,end){const s=studentById(id);const inR=d=>(!from||(
 }
 function getRepRange(){return [(document.getElementById('repFrom')||{}).value||'',(document.getElementById('repEnd')||{}).value||''];}
 function clearRepRange(){const f=document.getElementById('repFrom'),e=document.getElementById('repEnd');if(f)f.value='';if(e)e.value='';const id=(document.getElementById('repStudent')||{}).value;if(id&&document.getElementById('reportCard'))renderReport(id);}
-function repBars(obj,max,color){const e=Object.entries(obj).sort((a,b)=>b[1]-a[1]);const mx=max||Math.max(1,...e.map(x=>x[1]));return e.map(([k,v])=>`<div class="repbar"><div>${k}</div><div class="t"><div class="f" style="width:${Math.round(v/mx*100)}%;background:${color||'var(--blue)'}"></div></div><div class="num">${typeof v==='object'?'':v}</div></div>`).join('')||'<div class="mini">데이터 없음</div>';}
+function repBars(obj,max,color){const e=Object.entries(obj).sort((a,b)=>b[1]-a[1]);const mx=max||Math.max(1,...e.map(x=>x[1]));return e.map(([k,v])=>`<div class="repbar"><div>${k}</div><div class="t"><div class="f" style="width:${Math.round(v/mx*100)}%;background:${color||'#2f6fed'}"></div></div><div class="num">${typeof v==='object'?'':v}</div></div>`).join('')||'<div class="mini">데이터 없음</div>';}
 function reportHTMLBody(r){const s=r.s;
   return `<div class="rhead"><h2>${s.name} 학습 분석 리포트</h2>
    <div class="rmeta">${s.school} ${s.grade}학년 · 담당 ${s.teacher} · ${s.division}${r.withdrawn?` · <b style="color:#ffd7dd">퇴원생</b>`:''} · 기간 <b>${r.rangeApplied}</b> · 생성일 ${todayStr()}</div></div><div class="rbody">
@@ -957,13 +957,13 @@ function reportHTMLBody(r){const s=r.s;
      <div class="rtile"><div class="l">오답 완료율</div><div class="v">${r.errRate??'-'}%</div></div></div>
    ${r.ins.length?`<div class="insight">📌 ${r.ins.join(' · ')}</div>`:''}
    <h4>과목별 진행 회차</h4>${repBars(r.subj)}
-   <h4>교재별 진행 회차</h4>${repBars(r.book,0,'var(--blue-250)')}
+   <h4>교재별 진행 회차</h4>${repBars(r.book,0,'#5b8def')}
    <h4>테스트 분석 (평균 정답률 ${r.testAvg??'-'}%)</h4>
    ${r.tests.length?`<table><thead><tr><th>날짜</th><th>테스트</th><th class="num">점수</th><th class="num">정답률</th><th>오답</th></tr></thead><tbody>${r.tests.map(t=>`<tr><td>${t.date.slice(5)}</td><td>${t.name}${t.skip&&t.reason?` (${t.reason})`:''}</td><td class="num">${t.skip?'-':t.score}</td><td class="num">${t.rate!=null?t.rate+'%':'-'}</td><td>${t.skip?'<span class="mini">생략</span>':(t.errDone==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>')}</td></tr>`).join('')}</tbody></table>`:'<div class="mini">테스트 기록 없음</div>'}
    <h4>오답노트 분석 (총 ${r.notesN}건 · 미완료 ${r.errMiss}건)</h4>
-   ${r.errRows.length?`<table><thead><tr><th>날짜</th><th>교재</th><th>단원</th><th class="num">맞은/문항</th><th>상태</th></tr></thead><tbody>${r.errRows.map(e=>`<tr><td>${(e.date||'').slice(5)}</td><td>${e.book||'-'}</td><td>${e.unit||'-'}</td><td class="num">${e.score}</td><td>${e.status==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>'}</td></tr>`).join('')}</tbody></table>${r.errMiss>0?`<div class="insight" style="background:var(--crit-bg);color:#a52121;border-color:#f2c9c9">⚠ 미완료 오답 ${r.errMiss}건이 지속되고 있습니다.</div>`:''}`:'<div class="mini">오답노트 기록 없음</div>'}
+   ${r.errRows.length?`<table><thead><tr><th>날짜</th><th>교재</th><th>단원</th><th class="num">맞은/문항</th><th>상태</th></tr></thead><tbody>${r.errRows.map(e=>`<tr><td>${(e.date||'').slice(5)}</td><td>${e.book||'-'}</td><td>${e.unit||'-'}</td><td class="num">${e.score}</td><td>${e.status==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>'}</td></tr>`).join('')}</tbody></table>${r.errMiss>0?`<div class="insight" style="background:#fdecec;color:#a52121;border-color:#f2c9c9">⚠ 미완료 오답 ${r.errMiss}건이 지속되고 있습니다.</div>`:''}`:'<div class="mini">오답노트 기록 없음</div>'}
    <h4>과제 수행율 흐름</h4>
-   ${r.hwSeries.length?r.hwSeries.map(h=>`<div class="repbar"><div>${h.date.slice(5)}</div><div class="t"><div class="f" style="width:${h.rate}%;background:var(--good)"></div></div><div class="num">${h.rate}%</div></div>`).join(''):'<div class="mini">과제 기록 없음</div>'}</div>`;
+   ${r.hwSeries.length?r.hwSeries.map(h=>`<div class="repbar"><div>${h.date.slice(5)}</div><div class="t"><div class="f" style="width:${h.rate}%;background:#16a34a"></div></div><div class="num">${h.rate}%</div></div>`).join(''):'<div class="mini">과제 기록 없음</div>'}</div>`;
 }
 function renderReport(id){const [from,end]=getRepRange();const r=buildReport(id,from,end);const withdrawn=r.withdrawn;
   document.getElementById('reportOut').innerHTML=
