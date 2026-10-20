@@ -243,7 +243,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
         <div style="align-self:flex-end"><button class="btn" onclick="addErrorNote()">＋ 등록</button></div></div>
     </div>
     <div class="card"><h3>등록된 오답노트 (수정·삭제 가능)</h3>
-      <div class="row" style="margin-bottom:8px"><input id="errSearch" placeholder="🔍 학생 이름·교재·단원 검색" oninput="renderErrList()" style="max-width:260px"></div>
+      <div class="row" style="margin-bottom:8px"><input id="errSearch" placeholder="🔍 학생 이름·교재·단원 검색" oninput="errSearchDebounced()" style="max-width:260px"></div>
       <div id="errList"></div></div>
   </section>
 
@@ -350,7 +350,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=21, APP_VERSION="v3.0";
+const APP_BUILD=22, APP_VERSION="v3.2";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -712,14 +712,21 @@ function editErrorNote(id){const n=DB.errorNotes.find(e=>e.id===id);
   const wrong=prompt('오답 문항수',n.wrong);if(wrong===null)return;
   n.book=book.trim();n.unit=unit.trim();n.wrong=parseInt(wrong)||n.wrong;save();renderErrList();toast('오답노트 수정됨');}
 function delErrorNote(id){if(confirm('이 오답노트를 삭제할까요?')){DB.errorNotes=DB.errorNotes.filter(e=>e.id!==id);save();renderErrList();toast('삭제됨');}}
+let ERR_LIMIT=50, _errSearchT=null;
+function errSearchDebounced(){clearTimeout(_errSearchT);_errSearchT=setTimeout(renderErrList,250);}
+function startChangeStudent(id,btn){const n=DB.errorNotes.find(e=>e.id===id);if(!n)return;const cell=btn.closest('.estu');if(!cell)return;
+  const opts=DB.students.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'ko')).map(st=>`<option value="${st.id}" ${st.id===n.studentId?'selected':''}>${st.name} (${st.school}${st.grade})</option>`).join('');
+  cell.innerHTML=`<select onchange="setErrNoteStudent('${id}',this.value)" style="max-width:160px" autofocus>${(DB.students.some(st=>st.id===n.studentId)?'':`<option value="${n.studentId}" selected>(알수없음)</option>`)}${opts}</select>`;}
 function renderErrList(){const qEl=document.getElementById('errSearch');const q=(qEl&&qEl.value||'').trim().toLowerCase();
-  const list=DB.errorNotes.filter(n=>{if(!q)return true;const s=studentById(n.studentId);return (s&&s.name&&s.name.toLowerCase().includes(q))||((n.unit||'').toLowerCase().includes(q))||((n.book||'').toLowerCase().includes(q));});
+  const all=DB.errorNotes.filter(n=>{if(!q)return true;const s=studentById(n.studentId);return (s&&s.name&&s.name.toLowerCase().includes(q))||((n.unit||'').toLowerCase().includes(q))||((n.book||'').toLowerCase().includes(q));});
+  const cap=q?300:ERR_LIMIT;const list=all.slice(0,cap);
   const rows=list.map(n=>{const s=studentById(n.studentId);return `<tr>
-  <td>${(n.date||'').slice(5)}</td><td><select onchange="setErrNoteStudent('${n.id}',this.value)" style="max-width:120px" title="학생 변경">${(DB.students.some(st=>st.id===n.studentId)?'':`<option value="${n.studentId}" selected>${s?s.name:'(알수없음)'}</option>`)}${DB.students.map(st=>`<option value="${st.id}" ${st.id===n.studentId?'selected':''}>${st.name} (${st.school}${st.grade})</option>`).join('')}</select></td>
+  <td>${(n.date||'').slice(5)}</td><td class="estu"><b>${s?s.name:'(알수없음)'}</b> <span class="mini">${s?s.school+s.grade:''}</span> <button class="btn sm ghost" style="padding:1px 7px" onclick="startChangeStudent('${n.id}',this)">변경</button></td>
   <td>${n.book} · ${n.unit}</td><td class="num">${n.wrong}</td><td class="num">${n.correct??'-'}</td>
   <td>${n.status==='완료'?'<span class="pill p-done">완료</span>':'<span class="pill p-wait">미완료</span>'}</td><td class="mini">${n.assistant}</td>
   <td><button class="btn sm ghost" onclick="editErrorNote('${n.id}')">수정</button> <button class="btn sm crit" onclick="delErrorNote('${n.id}')">삭제</button></td></tr>`;}).join('');
-  document.getElementById('errList').innerHTML=list.length?`<div class="mini" style="margin-bottom:6px;color:#888">${q?`"${q}" 검색: `:''}${list.length}건</div><table><thead><tr><th>날짜</th><th>학생</th><th>교재·단원</th><th class="num">오답</th><th class="num">맞은</th><th>상태</th><th>작성조교</th><th>관리</th></tr></thead><tbody>${rows}</tbody></table>`:(DB.errorNotes.length?'<div class="empty">검색 결과가 없습니다</div>':'<div class="empty">등록된 오답노트가 없습니다</div>');}
+  const more=all.length>list.length?`<div class="mini" style="margin-top:6px;color:#888">… 외 ${all.length-list.length}건은 검색으로 찾으세요.</div>`:'';
+  document.getElementById('errList').innerHTML=all.length?`<div class="mini" style="margin-bottom:6px;color:#888">${q?`"${q}" 검색: `:'전체 '}${all.length}건${!q&&all.length>cap?` · 최근 ${cap}건 표시`:''}</div><table><thead><tr><th>날짜</th><th>학생</th><th>교재·단원</th><th class="num">오답</th><th class="num">맞은</th><th>상태</th><th>작성조교</th><th>관리</th></tr></thead><tbody>${rows}</tbody></table>${more}`:(DB.errorNotes.length?'<div class="empty">검색 결과가 없습니다</div>':'<div class="empty">등록된 오답노트가 없습니다</div>');}
 
 /* ===== ③ 전달사항 ===== */
 function renderNotes(){const area=document.getElementById('notesArea');const role=SESSION.role,me=SESSION.user;
