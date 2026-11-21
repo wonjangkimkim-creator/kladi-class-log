@@ -329,7 +329,8 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
       <div class="filterbar"><span id="repTeacherWrap"></span><label>학생</label><select id="repStudent"></select>
         <label>기간</label><input type="date" id="repFrom" style="width:auto" title="미설정 시 처음부터"><span>~</span><input type="date" id="repEnd" style="width:auto" title="미설정 시 현재까지">
         <button class="btn sm ghost" onclick="clearRepRange()">전체기간</button>
-        <button class="btn sm" onclick="genReport()">리포트 생성</button></div>
+        <button class="btn sm" onclick="genReport()">리포트 생성</button>
+        <button class="btn sm good" onclick="genDetailReport()" title="진도 로드맵·그래프·진단·계획이 포함된 상세 리포트를 새 창으로 엽니다">📈 상세 분석 리포트</button></div>
       <p class="mini" style="margin:0">기간을 비워두면 처음부터 현재까지 전체 데이터로 생성됩니다.</p>
       <div id="repRoster"></div></div>
     <div id="reportOut"></div>
@@ -350,7 +351,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=22, APP_VERSION="v3.2";
+const APP_BUILD=23, APP_VERSION="v3.3";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -913,7 +914,7 @@ function reportScope(){const isDir=SESSION.role==='director';let list;
 function fillRepStudents(){const list=reportScope();
   document.getElementById('repStudent').innerHTML=list.map(s=>`<option value="${s.id}">${s.name} (${s.school}${s.grade})</option>`).join('');
   // 선생님별 페이지: 담당 학생 요약
-  const rows=list.map(s=>{const r=quickStats(s.id);return `<tr><td><b>${s.name}</b> <span class="mini">${s.school}${s.grade}</span></td><td class="num">${r.jn}</td><td class="num">${r.hw??'-'}</td><td class="num">${r.tr??'-'}</td><td class="num">${r.errMiss}</td><td><button class="btn sm ghost" onclick="openReportFor('${s.id}')">리포트</button></td></tr>`;}).join('');
+  const rows=list.map(s=>{const r=quickStats(s.id);return `<tr><td><b>${s.name}</b> <span class="mini">${s.school}${s.grade}</span></td><td class="num">${r.jn}</td><td class="num">${r.hw??'-'}</td><td class="num">${r.tr??'-'}</td><td class="num">${r.errMiss}</td><td><button class="btn sm ghost" onclick="openReportFor('${s.id}')">리포트</button> <button class="btn sm good" onclick="openDetailReport('${s.id}')">상세</button></td></tr>`;}).join('');
   document.getElementById('repRoster').innerHTML=list.length?`<div class="card noprint" style="margin-top:12px"><h3>담당 학생 요약 (클릭해서 리포트)</h3><div style="max-height:360px;overflow:auto"><table><thead><tr><th>학생</th><th class="num">일지</th><th class="num">과제%</th><th class="num">정답%</th><th class="num">오답미완</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`:'';}
 function quickStats(id){const js=DB.journals.filter(j=>j.studentId===id&&!j.absent);const hw=pctAvg(js.flatMap(j=>(j.lastHw||[]).map(h=>h.rate)));
   const tests=js.flatMap(j=>(j.tests||[])).map(t=>t.total?t.correct/t.total*100:null).filter(x=>x!=null);const tr=tests.length?Math.round(tests.reduce((a,b)=>a+b,0)/tests.length):null;
@@ -975,6 +976,7 @@ function reportHTMLBody(r){const s=r.s;
 function renderReport(id){const [from,end]=getRepRange();const r=buildReport(id,from,end);const withdrawn=r.withdrawn;
   document.getElementById('reportOut').innerHTML=
     `<div id="reportActions" class="row noprint" style="margin:8px 0;justify-content:flex-end">
+       <button class="btn sm good" onclick="openDetailReport('${id}')">📈 상세 분석 리포트</button>
        <button class="btn sm" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
        <button class="btn sm ghost" onclick="reportPNG('${id}')">🖼 이미지(PNG)</button>
        <button class="btn sm ghost" onclick="reportHTMLDl('${id}')">⬇ HTML 다운로드</button>
@@ -1002,6 +1004,303 @@ function openReportPopup(sid){const s=studentById(sid);if(!s){toast('학생 정�
   w.document.open();w.document.write(html);w.document.close();}
 function reportLinkInfo(){navigator.clipboard&&navigator.clipboard.writeText(location.href).catch(()=>{});toast('실시간 링크 공유는 2차(서버) 단계에서 지원됩니다. 지금은 HTML/PDF/이미지로 공유하세요.');}
 function saveWithdrawnReport(id){const [from,end]=getRepRange();const r=buildReport(id,from,end);const w=DB.withdrawn.find(x=>x.id===id);if(!w)return;w.report=reportHTMLBody(r);w.reportSavedAt=nowStr();save();toast('퇴원생 학습 분석 리포트 저장됨 (퇴원 원인 분석 자료로 보관)');renderWithdrawn();}
+
+/* ===== 상세 학습 분석 리포트 (진도 로드맵 · 그래프 · 진단 · 계획) =====
+   수업일지·오답노트·수만프 데이터를 2022 개정 교육과정 단원에 매핑해 자동 분석합니다.
+   진단·계획 문장은 규칙 기반 초안이며, 리포트 창에서 선생님이 직접 고쳐 쓴 뒤 인쇄/저장할 수 있습니다. */
+const DR_TIER1='고1 · 공통과목 (내신 5등급 상대평가)',DR_TIER2='고2 · 일반선택 (2028 수능 공통 출제 범위)',DR_TIER3='고3 · 진로선택 (수능 제외, 이공계 권장)';
+const DR_CURR=[
+ {key:'공1',name:'공통수학1',tier:DR_TIER1,units:[
+   {n:'다항식',w:25,k:/다항식|나머지\s*정리|인수\s*정리|항등식|조립\s*제법/},
+   {n:'방정식과 부등식',w:40,k:/복소수|이차\s*함수|(?<!절대\s*)부등식|(?<!원의\s*|직선의\s*|도형의\s*)방정식/},
+   {n:'경우의 수',w:20,k:/경우의\s*수|순열|조합/},
+   {n:'행렬',w:15,k:/행렬/}]},
+ {key:'공2',name:'공통수학2',tier:DR_TIER1,units:[
+   {n:'도형의 방정식',w:40,k:/평면\s*좌표|두\s*점|내분|직선의\s*방정식|원의\s*방정식|원과\s*직선|도형의\s*이동|평행\s*이동|대칭\s*이동/},
+   {n:'집합과 명제',w:30,k:/집합|명제|필요|충분|절대\s*부등식|대우/},
+   {n:'함수와 그래프',w:30,k:/(?<!이차\s*|삼각\s*|지수\s*|로그\s*)함수|합성|역함수|유리|무리/}]},
+ {key:'대수',name:'대수',tier:DR_TIER2,units:[{n:'지수·로그',w:35,k:/지수|로그/},{n:'삼각함수',w:35,k:/삼각\s*함수|호도법|사인|코사인/},{n:'수열',w:30,k:/수열|등차|등비|귀납|합의\s*기호/}]},
+ {key:'미1',name:'미적분Ⅰ',tier:DR_TIER2,units:[{n:'함수의 극한',w:30,k:/극한|연속/},{n:'미분',w:40,k:/미분|도함수|접선|극대|극소/},{n:'적분',w:30,k:/적분|넓이/}]},
+ {key:'확통',name:'확률과 통계',tier:DR_TIER2,units:[{n:'순열·조합',w:30,k:/순열|조합|이항\s*정리|중복/},{n:'확률',w:35,k:/확률/},{n:'통계',w:35,k:/통계|분포|추정|기댓값/}]},
+ {key:'미2',name:'미적분Ⅱ',tier:DR_TIER3,units:[{n:'수열의 극한',w:25,k:/수열의\s*극한|(?<!정적분과\s*)급수/},{n:'미분법',w:35,k:/미분/},{n:'적분법',w:40,k:/적분/}]},
+ {key:'기하',name:'기하',tier:DR_TIER3,units:[{n:'이차곡선',w:40,k:/이차\s*곡선|포물선|타원|쌍곡선/},{n:'공간도형',w:30,k:/공간/},{n:'벡터',w:30,k:/벡터/}]}];
+const DR_MAP=Object.fromEntries(DR_CURR.map(c=>[c.key,c]));
+const DR_PRE={대수:['공1','공2'],미1:['공1','공2','대수'],확통:['공1','공2'],미2:['공1','공2','대수','미1'],기하:['공1','공2']};
+const DR_MID=/(^|[^0-9-])[1-3]-[12](?![0-9-])|중\s*[1-3]|중등|PRE[\s-]*TEST|수만프|[가-힣]중\s*(기말|중간)|중학/i;
+const DR_MID_UNIT=/삼각비|원주각|원의\s*성질|원과\s*직선|대푯값|산포도|상관|제곱근|피타고라스/;
+const DR_HARD=/C\s*(단계|스텝|step)|고난|킬러/i;
+const DR_COL={U:'#2a78d6',M:'#eb6834',R:'#1baf7a'};
+const DR_CATN={U:'고등 단원 테스트',M:'중등 내신 대비',R:'실전 모의·고교 기출'};
+function drEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function drAvg(a){a=a.filter(x=>x!=null&&!isNaN(x));return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;}
+function drDays(a,b){return (Date.parse(b)-Date.parse(a))/864e5;}
+function drSubjOf(t){t=String(t||'');
+  if(/공통\s*수학\s*(1|Ⅰ)(?![0-9ⅠI])|공수\s*1|(^|[^가-힣])공\s*1(?![0-9])|공통\s*1/.test(t))return '공1';
+  if(/공통\s*수학\s*(2|Ⅱ)(?![0-9])|공수\s*2|(^|[^가-힣])공\s*2(?![0-9])|공통\s*2/.test(t))return '공2';
+  if(/미적분\s*(2|Ⅱ|II)(?![0-9])|미적\s*2/.test(t))return '미2';
+  if(/미적분\s*(1|Ⅰ|I)(?![0-9I])|미적\s*1|(^|[^통])수학\s*(2|Ⅱ|II)(?![0-9I])/.test(t))return '미1';
+  if(/확률과\s*통계|확통/.test(t))return '확통';
+  if(/기하(?!급수)/.test(t))return '기하';
+  if(/대수|(^|[^통])수학\s*(1|Ⅰ|I)(?![0-9I])/.test(t))return '대수';
+  if(DR_MID.test(t))return 'M';
+  return null;}
+function drUnitIdx(key,t){const c=DR_MAP[key];return c?c.units.findIndex(u=>u.k.test(t)):-1;}
+function drClassify(t,ctx){let s=drSubjOf(t);
+  if(!s){const c=[...ctx].filter(k=>k!=='M'&&drUnitIdx(k,t)>=0);
+    if(c.length===1)s=c[0];else if(!c.length&&(ctx.has('M')||DR_MID_UNIT.test(t)))s='M';}
+  return {s,u:s&&s!=='M'?drUnitIdx(s,t):-1};}
+function drTestCat(nm,ctx){
+  if(/모의|학평|학력\s*평가|전국\s*연합/.test(nm))return 'R';
+  if(/[가-힣]고\s*(기출|중간|기말)|[가-힣]고(\s|$)|고교\s*기출/.test(nm)&&!/[가-힣]중\s*(기말|중간)/.test(nm))return 'R';
+  const c=drClassify(nm,ctx);if(c.s==='M')return 'M';if(c.s)return 'U';
+  if(/(중간|기말)/.test(nm))return 'M';
+  return [...ctx].some(k=>k!=='M')?'U':'M';}
+function drMidUnit(t){const m=String(t).match(/삼각비|원주각|원의\s*성질|원과\s*직선|접선|대푯값|산포도|상관|통계|제곱근|실수|인수\s*분해|이차\s*방정식|이차\s*함수|피타고라스|확률|일차\s*함수|연립|부등식/);
+  if(!m)return '학교 기출·기타';const w=m[0].replace(/\s/g,'');
+  if(/원주각|원의성질|원과직선|접선/.test(w))return '원의 성질';if(/대푯값|산포도|상관|통계/.test(w))return '통계';if(/제곱근|실수/.test(w))return '제곱근과 실수';return w;}
+function drSuman(s){try{
+  const keys=Object.keys(localStorage).filter(k=>/^sumanpeu_/.test(k)&&!/_gate$/.test(k)).sort().reverse();
+  const sch=String(s.school||'').replace(/학교$/,'');
+  for(const k of keys){const o=JSON.parse(localStorage.getItem(k)||'null');if(!o||!o.students||!o.scores)continue;
+    const st=o.students.find(x=>x.name===s.name&&String(x.school||'').replace(/학교$/,'').startsWith(sch));if(!st)continue;
+    const my=o.scores[st.id];if(!my)continue;
+    const rs=Object.keys(my).filter(r=>/^r\d+$/.test(r)&&my[r]&&!my[r].absent&&!isNaN(parseFloat(my[r].score))).sort((a,b)=>+a.slice(1)-+b.slice(1));if(!rs.length)continue;
+    const ver=my[rs[0]].version||'';
+    const rows=rs.map(r=>{const v=Object.values(o.scores).map(x=>x&&x[r]&&!x[r].absent&&(x[r].version||'')===ver?parseFloat(x[r].score):NaN).filter(x=>x>0);
+      return {r:r.slice(1)+'회',me:parseFloat(my[r].score),avg:v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length*10)/10:null,n:v.length};});
+    return {ver,rows,prev:st.prevScore,goalT:st.teacherGoal,goalS:st.studentGoal};}
+  }catch(e){}return null;}
+
+function drBuild(id,from,end){const s=studentById(id);const inR=d=>(!from||(d||'')>=from)&&(!end||(d||'')<=end);
+  const js=DB.journals.filter(j=>j.studentId===id&&inR(j.date)).sort((a,b)=>a.date.localeCompare(b.date));
+  const act=js.filter(j=>!j.absent);
+  const ctxOf=j=>{const c=new Set();[...(j.subjects||[]),...composedBooks(j),...(j.lesson||[]).map(l=>l.book),...(j.lastHw||[]).map(h=>h.book)].forEach(t=>{const x=drSubjOf(t);if(x)c.add(x);});return c;};
+  const GLOBAL=new Set();act.forEach(j=>ctxOf(j).forEach(x=>GLOBAL.add(x)));
+  const ctxFor=j=>{const c=j?ctxOf(j):new Set();return c.size?c:GLOBAL;};
+  const items=[];
+  act.forEach(j=>{const ctx=ctxFor(j);
+    (j.lesson||[]).forEach(l=>{if(!String(l.val||'').trim())return;const t=(l.book||'')+' '+l.val;items.push({date:j.date,kind:'lesson',t,book:l.book||'',...drClassify(t,ctx)});});
+    (j.lastHw||[]).forEach(h=>{if(!String(h.val||'').trim())return;const t=(h.book||'')+' '+h.val;const r=(h.rate===''||h.rate==null||isNaN(+h.rate))?null:+h.rate;items.push({date:j.date,kind:'hw',t,book:String(h.book||'').trim(),rate:r,...drClassify(t,ctx)});});});
+  // 테스트 (이월 중복 정리: 완료본 1회, 없으면 마지막 기록)
+  const tmap=new Map();
+  act.forEach(j=>{const ctx=ctxFor(j);(j.tests||[]).forEach(t=>{const nm=String(t.name||'').trim();if(!nm)return;
+    let p=null;const tot=+t.total,c=+t.correct;if(tot>0&&t.correct!==''&&t.correct!=null&&!isNaN(c))p=Math.round(c/tot*1000)/10;else if(t.score!==''&&t.score!=null&&!isNaN(parseFloat(t.score)))p=parseFloat(t.score);
+    const base=nm.replace(/\s*\(이월\)/g,'').trim();const rec={date:j.date,name:base,p,c:t.correct,tot:t.total,done:t.errDone==='완료',cat:drTestCat(base,ctx),cls:drClassify(base,ctx)};
+    const prev=tmap.get(base);if(prev)rec.date=prev.date; // 이월 테스트는 처음 응시한 날짜로 표시
+    if(!prev||rec.done||!prev.done)tmap.set(base,rec);});});
+  const tests=[...tmap.values()].sort((a,b)=>a.date.localeCompare(b.date));const testsP=tests.filter(t=>t.p!=null);
+  tests.filter(t=>t.cat==='U'&&t.cls.u>=0).forEach(t=>items.push({date:t.date,kind:'test',t:t.name,...t.cls}));
+  // 오답노트
+  const notes=DB.errorNotes.filter(e=>e.studentId===id&&inR(e.date)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const errGroups={};let wrongSum=0,fixSum=0,doneWrong=0;
+  notes.forEach(e=>{const j=act.find(x=>x.date===e.date);const ctx=ctxFor(j);const t=(e.book||'')+' '+(e.unit||'');const w=+e.wrong||0;wrongSum+=w;
+    if(e.status==='완료'){doneWrong+=w;fixSum+=(+e.correct||0);}
+    let g,type;if(drTestCat(t,ctx)==='R'&&!drSubjOf(t)){g='모의고사·고교 기출';type='R';}
+    else{const c=drClassify(t,ctx);if(c.s&&c.s!=='M'&&c.u>=0){g=DR_MAP[c.s].name+' '+DR_MAP[c.s].units[c.u].n;type='U';items.push({date:e.date,kind:'err',t,...c});}
+      else if(c.s==='M'){g='중등 '+drMidUnit(t);type='M';}else{g='기타';type='M';}}
+    const G=errGroups[g]=errGroups[g]||{g,type,w:0,n:0,miss:0};G.w+=w;G.n++;if(e.status!=='완료')G.miss++;});
+  // 단원 진행 상태
+  const lastDate=js.length?js[js.length-1].date:todayStr();
+  const touched={},lastBook={};
+  items.forEach(it=>{if(!it.s||it.s==='M'||it.u<0)return;const T=touched[it.s]=touched[it.s]||{};if(!T[it.u]||T[it.u]<it.date)T[it.u]=it.date;if(it.book&&drSubjOf(it.book)===it.s)lastBook[it.s]=it.book;});
+  const status={};
+  DR_CURR.forEach(c=>{const T=touched[c.key]||{};const idx=Object.keys(T).map(Number);const max=idx.length?Math.max(...idx):-1;let cur=-1;
+    if(idx.length){const latest=idx.slice().sort((a,b)=>T[b].localeCompare(T[a])||b-a)[0];if(drDays(T[latest],lastDate)<=21)cur=latest;}
+    status[c.key]=c.units.map((u,i)=>T[i]!=null?(i===cur?'cur':'done'):(i<max?'est':'none'));});
+  Object.keys(DR_PRE).forEach(k=>{if(touched[k])DR_PRE[k].forEach(p=>{status[p]=status[p].map(x=>x==='none'?'est':x);});});
+  const pct=k=>{const c=DR_MAP[k];return Math.round(c.units.reduce((a,u,i)=>a+u.w*({done:1,est:1,cur:.5}[status[k][i]]||0),0));};
+  const pctC=k=>{const c=DR_MAP[k];return Math.round(c.units.reduce((a,u,i)=>a+u.w*({done:1,cur:.5}[status[k][i]]||0),0));};
+  const subjPct={};DR_CURR.forEach(c=>subjPct[c.key]=pct(c.key));
+  const g1=Math.round((subjPct['공1']+subjPct['공2'])/2);
+  const all7=Math.round(DR_CURR.reduce((a,c)=>a+subjPct[c.key],0)/7);
+  const sat=Math.round((subjPct['대수']+subjPct['미1']+subjPct['확통'])/3);
+  const curList=[];DR_CURR.forEach(c=>status[c.key].forEach((x,i)=>{if(x==='cur')curList.push(c.name+' '+c.units[i].n);}));
+  const lastTouch=k=>{const T=touched[k];return T?Object.values(T).sort().pop():null;};
+  // 출석·과제
+  const absJ=js.filter(j=>j.absent);const makeup=absJ.filter(a=>act.some(j=>j.date>a.date&&drDays(a.date,j.date)<=1)).length;
+  const hw=items.filter(i=>i.kind==='hw'&&i.rate!=null);const hwAvg=drAvg(hw.map(h=>h.rate));
+  const byBook={};hw.forEach(h=>{const b=h.book||'(교재 미기재)';(byBook[b]=byBook[b]||[]).push(h.rate);});
+  const hwBooks=Object.entries(byBook).filter(([b,a])=>a.length>=2).map(([b,a])=>({b,v:drAvg(a),n:a.length})).sort((a,b)=>b.v-a.v);
+  const hard=hw.filter(h=>DR_HARD.test(h.t));const hardAvg=hard.length>=2?drAvg(hard.map(h=>h.rate)):null;
+  const tAvg={};['U','M','R'].forEach(k=>{const a=testsP.filter(t=>t.cat===k);tAvg[k]=a.length?{v:drAvg(a.map(t=>t.p)),n:a.length}:null;});
+  const cum=testsP.filter(t=>t.cat==='U'&&/[-~]|누적|전범위|종합/.test(t.name));const single=testsP.filter(t=>t.cat==='U'&&!cum.includes(t));
+  const cumAvg=cum.length?drAvg(cum.map(t=>t.p)):null,singleAvg=single.length?drAvg(single.map(t=>t.p)):null;
+  const minT=testsP.slice().sort((a,b)=>a.p-b.p)[0];
+  const errRows=Object.values(errGroups).sort((a,b)=>b.w-a.w);
+  const errMiss=notes.filter(e=>e.status!=='완료').length;const errDoneRate=notes.length?Math.round((notes.length-errMiss)/notes.length*100):null;
+  const fixRate=doneWrong?Math.round(fixSum/doneWrong*100):null;
+  const suman=drSuman(s);
+  // 월별 흐름
+  const months={};js.forEach(j=>{const m=j.date.slice(0,7);const M=months[m]=months[m]||{m,att:0,abs:0,units:new Set(),mid:0,hs:0};if(j.absent)M.abs++;else M.att++;});
+  items.forEach(it=>{const M=months[(it.date||'').slice(0,7)];if(!M)return;if(it.s==='M')M.mid++;else if(it.s&&it.u>=0){M.hs++;M.units.add(DR_MAP[it.s].name+' '+DR_MAP[it.s].units[it.u].n);}});
+  Object.values(months).forEach(M=>{const ts=testsP.filter(t=>t.date.slice(0,7)===M.m);M.tn=ts.length;M.tavg=drAvg(ts.map(t=>t.p));M.hw=drAvg(hw.filter(h=>h.date.slice(0,7)===M.m).map(h=>h.rate));M.mode=M.mid>M.hs?'내신 집중':(M.hs?'선행':'기록');});
+  return {s,js,act,absJ,makeup,period:js.length?js[0].date+' ~ '+lastDate:'-',lastDate,status,subjPct,pctC,g1,all7,sat,curList,touched,lastTouch,lastBook,hw,hwAvg,hwBooks,hard,hardAvg,tests,testsP,tAvg,cumAvg,singleAvg,minT,notes,errRows,errMiss,errDoneRate,fixRate,wrongSum,fixSum,suman,months:Object.values(months).sort((a,b)=>a.m.localeCompare(b.m))};}
+
+function drDiagnose(d){const S=[],W=[],att=d.act.length,tot=d.js.length,attR=tot?att/tot*100:0;const t=d.tAvg;
+  const higher=['대수','미1','확통','미2','기하'].filter(k=>d.touched[k]);
+  if(t.M&&t.M.v>=88)S.push({t:'중등 내신 상위권',c:`중등 테스트 ${t.M.v}%`,p:`중등 내신 대비 테스트 ${t.M.n}회 평균 ${t.M.v}%입니다.`+(d.suman?` 수만프 평균 ${drAvg(d.suman.rows.map(r=>r.me))}점으로 같은 시험 평균 ${drAvg(d.suman.rows.map(r=>r.avg))}점보다 높습니다.`:'')});
+  if(higher.length)S.push({t:'선행 범위',c:DR_MAP[higher[higher.length-1]].name+' 학습',p:`수업일지에서 ${higher.map(k=>DR_MAP[k].name).join('·')} 학습이 확인됩니다. 공통수학 이후 과정까지 진도가 나가 있습니다.`});
+  else if(d.g1>=60)S.push({t:'고1 과정 선행',c:`고1 과정 ${d.g1}%`,p:`공통수학1 ${d.subjPct['공1']}%, 공통수학2 ${d.subjPct['공2']}%까지 진행했습니다(기록 이전 학습 추정 포함).`});
+  if(d.hwAvg!=null&&d.hwAvg>=90)S.push({t:'과제 성실도',c:`과제 ${d.hwAvg}%`,p:`과제 ${d.hw.length}개의 평균 이행률이 ${d.hwAvg}%입니다.`});
+  else if(d.hwBooks[0]&&d.hwBooks[0].v>=95)S.push({t:'개념서 과제 완수',c:`${d.hwBooks[0].b} ${d.hwBooks[0].v}%`,p:`${d.hwBooks[0].b} 과제를 ${d.hwBooks[0].n}회 중 거의 모두 완수했습니다.`});
+  if(d.errDoneRate!=null&&d.errDoneRate>=90&&d.notes.length>=5)S.push({t:'오답 관리 습관',c:`오답 완료 ${d.errDoneRate}%`,p:`오답노트 ${d.notes.length}건 중 ${d.notes.length-d.errMiss}건을 완료했고${d.fixRate!=null?`, 재풀이 정답률은 ${d.fixRate}%`:''}입니다.`});
+  if(attR>=92&&tot>=8)S.push({t:'출석 안정',c:`출석 ${att}/${tot}`,p:`분석 기간 결석이 ${tot-att}회뿐이라 수업 리듬이 안정적입니다.`});
+  if(t.R&&t.R.v>=80)S.push({t:'실전 감각',c:`실전 ${t.R.v}%`,p:`모의고사·고교 기출 ${t.R.n}회 평균 ${t.R.v}%로 실전에서도 실력이 나옵니다.`});
+  if(d.hardAvg!=null&&d.hardAvg<70)W.push({t:'고난도 과제 미완',c:`이행률 ${d.hardAvg}%`,p:`C단계·고난도 과제 ${d.hard.length}개의 이행률이 ${d.hardAvg}%입니다. 막히는 문제를 넘기는 패턴으로 보이며, 내신 변별 문항이 이 수준입니다.`,g:`고난도 과제 이행률 ${d.hardAvg}% → 90%`});
+  const lowBook=d.hwBooks.filter(b=>b.n>=3&&b.v<80).pop();if(lowBook&&!(d.hardAvg!=null&&d.hardAvg<70))W.push({t:'교재별 과제 편차',c:`${lowBook.b} ${lowBook.v}%`,p:`${lowBook.b} 과제 이행률이 ${lowBook.v}%로 다른 교재보다 낮습니다.`,g:`${lowBook.b} 과제 이행률 90% 이상`});
+  if(d.cumAvg!=null&&d.singleAvg!=null&&d.singleAvg-d.cumAvg>=10)W.push({t:'누적 시험 점수 하락',c:`단원 ${d.singleAvg}% → 누적 ${d.cumAvg}%`,p:`단원 직후 테스트는 평균 ${d.singleAvg}%지만 범위를 묶은 누적 테스트는 ${d.cumAvg}%입니다. 앞 단원 망각이 생기고 있어 주기적인 누적 점검이 필요합니다.`,g:'격주 누적 테스트 평균 85% 이상'});
+  if(t.U&&t.R&&t.R.n>=2&&t.U.v-t.R.v>=7)W.push({t:'실전 점수 정체',c:`단원 ${t.U.v}% vs 실전 ${t.R.v}%`,p:`같은 범위라도 시간 제한이 있는 모의고사·기출에서 ${Math.round(t.U.v-t.R.v)}점가량 낮습니다. 후반부 고난도 문항과 시간 배분 훈련이 필요합니다.`,g:`실전 정답률 ${t.R.v}% → 90%`});
+  if(t.M&&t.U&&t.M.v-t.U.v>=8)W.push({t:'선행 정착도',c:`중등 ${t.M.v}% vs 선행 ${t.U.v}%`,p:`고등 단원 테스트 평균이 중등보다 ${Math.round(t.M.v-t.U.v)}점 낮습니다. 진도 속도보다 단원별 완성도를 먼저 챙길 시점입니다.`,g:`고등 단원 테스트 평균 ${t.U.v}% → 85%`});
+  if(d.minT&&d.minT.p<60)W.push({t:'취약 단원',c:`${d.minT.name} ${d.minT.p}%`,p:`${d.minT.date.slice(5).replace('-','/')} ‘${d.minT.name}’ 테스트가 ${d.minT.p}%로 가장 낮았습니다. 해당 단원 개념 재점검이 필요합니다.`,g:`${d.minT.name} 재테스트 80% 이상`});
+  if(tot>=8&&attR<85)W.push({t:'수업 리듬 불안정',c:`결석 ${tot-att}회`,p:`분석 기간 결석이 ${tot-att}회(${Math.round(100-attR)}%)이고, 그중 ${d.makeup}회는 다음 날 보강했습니다. 과제 점검 주기가 밀리지 않도록 같은 주 안에 보강하는 것이 좋습니다.`,g:'결석 시 같은 주 안에 보강'});
+  if(d.errMiss>=3)W.push({t:'미완료 오답',c:`미완료 ${d.errMiss}건`,p:`아직 해결하지 못한 오답이 ${d.errMiss}건 남아 있습니다.`,g:'미완료 오답 0건 유지'});
+  if(higher.length&&!d.touched['확통'])W.push({t:'수능 과목 공백',c:'확률과 통계 기록 없음',p:'2028 수능은 확률과 통계를 모든 수험생이 봅니다. 시스템에 학습 기록이 없어 이력 확인이 필요합니다.',g:'확률과 통계 1회독 (이미 학습했다면 진단 테스트로 확인)'});
+  const stale=higher.filter(k=>{const l=d.lastTouch(k);return l&&drDays(l,d.lastDate)>45;});
+  if(stale.length)W.push({t:'상위 과목 유지 관리',c:stale.map(k=>DR_MAP[k].name).join('·')+' 공백',p:`${stale.map(k=>DR_MAP[k].name+`(마지막 기록 ${d.lastTouch(k).slice(5).replace('-','/')})`).join(', ')} 이후 복습 기록이 없습니다.`,g:'상위 과목 월 1회 누적 테스트 80% 이상'});
+  const tw=d.errRows[0];if(tw&&d.wrongSum>=20&&tw.w/d.wrongSum>=0.3)W.push({t:'오답 집중 단원',c:`${tw.g} ${Math.round(tw.w/d.wrongSum*100)}%`,p:`전체 오답 ${d.wrongSum}문항 중 ${tw.w}문항이 ‘${tw.g}’에서 나왔습니다. 최우선 보완 대상입니다.`,g:`${tw.g} 유형별 재점검`});
+  return {S:S.slice(0,4),W:W.slice(0,4)};}
+
+function drPlan(d,dx){const s=d.s;const pre1=String(s.grade)==='3'&&/중$/.test(String(s.school||'').trim());
+  const left=k=>DR_MAP[k].units.filter((u,i)=>d.status[k][i]==='none').map(u=>u.n);
+  const curU=k=>DR_MAP[k].units.filter((u,i)=>d.status[k][i]==='cur').map(u=>u.n);
+  const has=t=>dx.W.some(w=>w.t===t);
+  if(!pre1){const last=d.act[d.act.length-1];const nx=last?(last.nextHw||[]).filter(h=>h.val).map(h=>`${h.book||''} ${h.val}`.trim()):[];
+    return {title:'다음 4주 학습 제안',lead:'최근 수업일지의 다음 과제와 진단 결과를 바탕으로 한 제안입니다.',rows:[
+      ['1–2주차',(curU('공1').concat(curU('공2')).length?`진행 중 단원 마무리: ${d.curList.join(', ')}`:'현재 단원 마무리')+(nx.length?` · 다음 과제: ${nx.join(', ')}`:''),'단원 테스트'],
+      ['3–4주차',dx.W.length?dx.W.slice(0,2).map(w=>w.g).join(' · '):'현재 학습 페이스 유지, 누적 복습','누적 테스트 1회']],cols:['기간','학습 내용','점검']};}
+  const rows=[];const p1=[],p2=[],p3=[];
+  const c1=curU('공1'),c2=curU('공2'),l1=left('공1'),l2=left('공2');
+  if(c1.length)p1.push(`공통수학1 ${c1.join('·')} 마무리`);if(c2.length)p1.push(`공통수학2 ${c2.join('·')} 1회독 완료`);
+  if(has('고난도 과제 미완'))p1.push('C단계·심화 오답 종결');if(d.errMiss)p1.push(`미완료 오답 ${d.errMiss}건 종결`);
+  if(!p1.length)p1.push('현재 진행 단원 마무리, 누적 오답 정리');
+  if(l1.length)p2.push(`공통수학1 ${l1.join('·')} 개념·유형`);if(l2.length)p2.push(`공통수학2 ${l2.join('·')} 개념·유형`);
+  if(!l1.length&&!l2.length)p2.push('공통수학2 심화 2회독');
+  if(dx.W.some(w=>w.t==='수능 과목 공백'))p2.push('확률과 통계 개념 1회독 시작 (주 1회)');
+  p3.push('공통수학1 전 범위 심화 2회독 (고1 1학기 중간 범위: 다항식, 방정식과 부등식)','인근 고교 1-1 중간 기출 3회분');
+  if(dx.W.some(w=>w.t==='상위 과목 유지 관리'))p3.push('상위 과목 누적 복습 2주');
+  rows.push(['1단계 · 방학 전',p1.join(', '),has('누적 시험 점수 하락')?'단원 누적 테스트 (목표 85%)':'단원 테스트']);
+  rows.push(['2단계 · 방학 전반',p2.join(', '),has('누적 시험 점수 하락')?'격주 누적 테스트':'고1 학평 기출 주 1회 (시간 제한)']);
+  rows.push(['3단계 · 방학 후반',p3.join(', '),has('실전 점수 정체')?'실전 목표 90% (시간 기록)':'고교 기출 목표 90%']);
+  rows.push(['4단계 · 고1 3월','입학 후 학교 진도·부교재 중심 내신 체제 전환, 3월 학평(중학 전 범위) 대비 1회 점검','학교 프린트 수집']);
+  return {title:'고1 입학 전 로드맵',lead:'원칙: 고1 1학기 중간고사 범위(공통수학1 다항식, 방정식과 부등식)를 내신 1등급(상위 10%) 수준으로 완성하는 것이 우선입니다.',rows,cols:['단계','학습 내용','점검 방식']};}
+
+function drSvgLine(pts){if(!pts.length)return '<div class="mini">점수가 기록된 테스트가 없습니다</div>';
+  const W=920,H=300,L=46,R=18,T=14,B=34;let lo=Math.min(...pts.map(p=>p.y));lo=Math.max(0,Math.min(60,Math.floor((lo-5)/10)*10));
+  const X=i=>L+(pts.length===1?(W-L-R)/2:i*(W-L-R)/(pts.length-1)),Y=v=>T+(100-v)/(100-lo)*(H-T-B);
+  let g='';const st=100-lo>40?20:10;for(let v=lo;v<=100;v+=st)g+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e8eaee"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#6b7280">${v}%</text>`;
+  const step=Math.max(1,Math.ceil(pts.length/9));let xl='';pts.forEach((p,i)=>{if(i%step===0)xl+=`<text x="${X(i)}" y="${H-12}" text-anchor="middle" font-size="11" fill="#6b7280">${drEsc(p.x)}</text>`;});
+  let s='';['M','U','R'].forEach(k=>{const cp=pts.map((p,i)=>({...p,i})).filter(p=>p.cat===k);if(!cp.length)return;
+    s+=`<polyline fill="none" stroke="${DR_COL[k]}" stroke-width="2" stroke-linejoin="round" points="${cp.map(p=>X(p.i).toFixed(1)+','+Y(p.y).toFixed(1)).join(' ')}"/>`;
+    s+=cp.map(p=>`<circle cx="${X(p.i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="4.5" fill="${DR_COL[k]}" stroke="#fff" stroke-width="2"><title>${drEsc(p.title)}</title></circle>`).join('');});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="테스트 정답률 추이">${g}<line x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}" stroke="#cbd2db"/>${s}${xl}</svg>`;}
+function drSvgHBars(rows,o){o=o||{};if(!rows.length)return '<div class="mini">데이터 없음</div>';
+  const W=920,LW=250,RW=70,rh=32,T=4,H=T+rows.length*rh+22,max=o.max||Math.max(1,...rows.map(r=>r.v)),bw=W-LW-RW;
+  let s='';(o.ticks||[0,Math.round(max/2),max]).forEach(t=>{const x=LW+t/max*bw;s+=`<line x1="${x}" x2="${x}" y1="${T}" y2="${H-20}" stroke="#eef0f3"/><text x="${x}" y="${H-6}" font-size="11" text-anchor="middle" fill="#6b7280">${t}${o.suf||''}</text>`;});
+  rows.forEach((r,i)=>{const y=T+i*rh,w=Math.max(2,r.v/max*bw),lb=r.l.length>19?r.l.slice(0,18)+'…':r.l;
+    s+=`<text x="${LW-10}" y="${y+rh/2+4}" text-anchor="end" font-size="12.5" fill="#374151">${drEsc(lb)}</text><rect x="${LW}" y="${y+7}" width="${w.toFixed(1)}" height="${rh-14}" rx="4" fill="${r.c||DR_COL.U}"><title>${drEsc(r.tip||r.l+': '+r.v+(o.suf||''))}</title></rect><text x="${(LW+w+6).toFixed(1)}" y="${y+rh/2+4}" font-size="12" font-weight="600" fill="#111827">${r.v}${o.suf||''}</text>`;});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${s}</svg>`;}
+function drSvgGroup(labels,series){const W=920,H=250,L=40,B=30,T=18,max=100,gw=(W-L-10)/labels.length,bw=Math.min(28,gw*0.8/series.length),Y=v=>T+(1-v/max)*(H-T-B);
+  let s='';[0,25,50,75,100].forEach(v=>s+=`<line x1="${L}" x2="${W-10}" y1="${Y(v)}" y2="${Y(v)}" stroke="#eef0f3"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#6b7280">${v}</text>`);
+  labels.forEach((lb,i)=>{const cx=L+gw*i+gw/2,tw=series.length*bw+(series.length-1)*4;series.forEach((se,k)=>{const v=se.values[i];if(v==null)return;const x=cx-tw/2+k*(bw+4);
+    s+=`<rect x="${x.toFixed(1)}" y="${Y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${(Y(0)-Y(v)).toFixed(1)}" rx="3" fill="${se.color}"><title>${drEsc(lb+' '+se.name+': '+v+'점')}</title></rect><text x="${(x+bw/2).toFixed(1)}" y="${(Y(v)-5).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="#374151">${v}</text>`;});
+    s+=`<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="12" fill="#6b7280">${drEsc(lb)}</text>`;});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${s}</svg>`;}
+
+const DR_CSS=`*{box-sizing:border-box}body{margin:0;background:#f6f7f9;color:#14181f;font-family:"Noto Sans KR","Malgun Gothic",system-ui,sans-serif;font-size:14.5px;line-height:1.65}
+.wrap{max-width:1000px;margin:0 auto;padding:28px 18px 56px;display:grid;gap:34px}h1,h2,h3{margin:0;line-height:1.3;font-weight:700}h1{font-size:27px}h2{font-size:19px}h3{font-size:15px}p{margin:0}
+.eb{font-size:12px;letter-spacing:.07em;color:#8a919c;font-weight:500}.lead{color:#4b5361;max-width:70ch}section{display:grid;gap:14px}.sh{display:grid;gap:5px}.mini{font-size:12.5px;color:#8a919c}
+header{display:grid;gap:12px;border-bottom:1px solid #e3e6eb;padding-bottom:20px}.meta{display:flex;flex-wrap:wrap;gap:6px 18px;color:#4b5361;font-size:13.5px}.meta b{color:#14181f;font-weight:500}
+.chip{display:inline-flex;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}.cg{background:#e3f4e9;color:#0f7a3a}.cw{background:#fdf1d8;color:#8a5a00}.ci{background:#e3eefb;color:#1f62b5}
+.box{background:#fff;border:1px solid #e3e6eb;border-radius:12px;padding:18px 20px;display:grid;gap:10px}.chips{display:flex;flex-wrap:wrap;gap:7px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.kpi{background:#fff;border:1px solid #e3e6eb;border-radius:10px;padding:12px 14px;display:grid;gap:3px;align-content:start}.kpi .k{font-size:12.5px;color:#4b5361}.kpi .v{font-size:24px;font-weight:700;line-height:1.2}.kpi .v small{font-size:13px;font-weight:500;color:#4b5361}.kpi .s{font-size:12px;color:#8a919c}
+.ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.ovi{display:grid;gap:5px}.ovi .lb{display:flex;justify-content:space-between;font-size:13px;color:#4b5361}.ovi .lb b{color:#14181f;font-size:17px}.bar{height:9px;background:#eceff3;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:#2a78d6}
+.tier{font-size:12px;color:#8a919c;letter-spacing:.05em;font-weight:500;border-top:1px solid #e3e6eb;padding-top:10px}.sj{display:grid;grid-template-columns:130px 1fr 74px;gap:12px;align-items:center}.sj .nm{font-weight:500;font-size:13.5px}.sj .nm small{display:block;color:#8a919c;font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sj .pc{text-align:right;font-weight:700;font-size:14px}.sj .pc small{display:block;font-weight:400;font-size:11px;color:#8a919c}
+.us{display:flex;gap:3px;min-width:0}.u{position:relative;height:28px;background:#eceff3;border-radius:4px;overflow:hidden;min-width:0}.u .f{position:absolute;inset:0 auto 0 0;background:#2a78d6}.u.est .f{background:repeating-linear-gradient(135deg,#2a78d6 0 6px,#cfe0f7 6px 9px)}.u.cur .f{background:#9ec5f4}.u span{position:relative;display:block;font-size:11px;line-height:28px;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#4b5361}.u.done span{color:#fff}.u.est span,.u.cur span{color:#14181f;text-shadow:0 0 3px #fff,0 0 3px #fff}
+.lg{display:flex;flex-wrap:wrap;gap:5px 16px;font-size:12px;color:#4b5361}.lg i{display:inline-block;width:13px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.tl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.tl .m{background:#fff;border:1px solid #e3e6eb;border-radius:10px;padding:12px 14px;display:grid;gap:6px;align-content:start}.tl ul{margin:0;padding-left:17px;color:#4b5361;font-size:13px;display:grid;gap:3px}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:#fff;border:1px solid #e3e6eb;border-radius:12px;padding:16px 16px 12px;display:grid;gap:8px;min-width:0;align-content:start}.card.wide{grid-column:1/-1}.card .cap{font-size:12.5px;color:#4b5361}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.dx{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.col{display:grid;gap:9px;align-content:start}.it{background:#fff;border:1px solid #e3e6eb;border-radius:10px;padding:12px 14px;display:grid;gap:5px}.it .t{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:700}.it p{color:#4b5361;font-size:13.5px}
+.tbl{overflow-x:auto;background:#fff;border:1px solid #e3e6eb;border-radius:12px}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px 12px;border-bottom:1px solid #eceff3;vertical-align:top}th{font-size:11.5px;color:#8a919c;font-weight:500;background:#f6f7f9}.num{text-align:right;font-variant-numeric:tabular-nums}tr:last-child td{border-bottom:0}
+.goals{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.goal{border-left:3px solid #2a78d6;padding:3px 0 3px 12px;font-size:13.5px;color:#4b5361}
+[contenteditable]{border-radius:8px;outline:1px dashed transparent;outline-offset:3px}[contenteditable]:hover,[contenteditable]:focus{outline-color:#9cc0ee}
+footer{border-top:1px solid #e3e6eb;padding-top:14px;font-size:12px;color:#8a919c;display:grid;gap:6px}footer a{color:#1f62b5}footer ul{margin:0;padding-left:17px}
+.rtop{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:8px 14px;background:#fff;border-bottom:1px solid #e3e6eb}.rtop span{margin-right:auto;font-size:12.5px;color:#4b5361}.rtop button{border:1px solid #d5d9e0;background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit}.rtop button.x{background:#2a78d6;border-color:#2a78d6;color:#fff}
+@media(max-width:720px){.charts,.dx{grid-template-columns:1fr}.sj{grid-template-columns:1fr 70px}.sj .us{grid-column:1/-1;grid-row:2}}
+@media print{body{background:#fff}.rtop{display:none}.wrap{padding:0;max-width:none}section,.card,.box,.it{break-inside:avoid}[contenteditable]{outline:none}}`;
+
+function drHTML(d){const s=d.s,dx=drDiagnose(d),pl=drPlan(d,dx),e=drEsc,pre1=String(s.grade)==='3'&&/중$/.test(String(s.school||'').trim());
+  const att=d.act.length,tot=d.js.length,t=d.tAvg,days=String(s.days||'').split('').filter(Boolean).join('·');
+  const higher=['대수','미1','확통','미2','기하'].filter(k=>d.touched[k]);
+  const head=`고1 과정 ${d.g1}% 진행`+(dx.W[0]?` · 핵심 과제: ${dx.W[0].t}`:' · 현재 페이스 유지');
+  const summary=`${e(s.name)} 학생은 분석 기간에 ${att}회 수업에 참여했습니다(출석 ${att}/${tot}). `+(d.curList.length?`현재 진행 중인 단원은 ${e(d.curList.join(', '))}이고, `:'')+`고1 과정 진도율은 약 ${d.g1}%(기록 이전 학습 추정 포함)`+(higher.length?`이고 ${e(higher.map(k=>DR_MAP[k].name).join('·'))} 학습 기록도 있습니다.`:'입니다.');
+  const summary2=(dx.S[0]?`강점은 <b>${e(dx.S[0].t)}</b>(${e(dx.S[0].c)})`:'')+(dx.S[0]&&dx.W[0]?'이고, ':'')+(dx.W[0]?`우선 보완할 점은 <b>${e(dx.W[0].t)}</b>(${e(dx.W[0].c)})입니다. ${e(dx.W[0].p)}`:(dx.S[0]?'입니다.':''));
+  const kpi=(k,v,u,sub)=>`<div class="kpi"><span class="k">${k}</span><span class="v">${v}<small>${u}</small></span><span class="s">${sub}</span></div>`;
+  let kp=kpi('출석',att,` / ${tot}회`,`결석 ${tot-att}회`+(d.makeup?` · ${d.makeup}회 다음 날 보강`:''));
+  if(d.hwAvg!=null)kp+=kpi('과제 평균 이행률',d.hwAvg,'%',`과제 ${d.hw.length}개 기준`);
+  ['M','U','R'].forEach(k=>{if(t[k])kp+=kpi(DR_CATN[k],t[k].v,'%',`${t[k].n}회 평균`);});
+  if(d.suman)kp+=kpi('수만프 평균',drAvg(d.suman.rows.map(r=>r.me)),'점',`같은 시험 평균 ${drAvg(d.suman.rows.map(r=>r.avg))}점`);
+  if(d.notes.length)kp+=kpi('오답 재풀이 정답률',d.fixRate!=null?d.fixRate:'-','%',`${d.wrongSum}문항 · 미완료 ${d.errMiss}건`);
+  // roadmap
+  let tiers='',lastTier='';DR_CURR.forEach(c=>{if(c.tier!==lastTier){tiers+=(lastTier?'</div>':'')+`<div style="display:grid;gap:9px"><div class="tier">${c.tier}</div>`;lastTier=c.tier;}
+    const st=d.status[c.key];const conf=d.pctC(c.key),p=d.subjPct[c.key];
+    const us=c.units.map((u,i)=>{const x=st[i];const lbl={done:'완료 (기록 확인)',est:'완료 추정 (기록 이전/선수 과목)',cur:'진행 중',none:'미시작'}[x];
+      return `<div class="u ${x}" style="flex:${u.w}" title="${e(u.n)}: ${lbl}">${x==='none'?'':`<div class="f" style="width:${x==='cur'?50:100}%"></div>`}<span>${e(u.n)}${x==='cur'?' ▸ 진행 중':''}</span></div>`;}).join('');
+    tiers+=`<div class="sj"><div class="nm">${c.name}<small>${e(d.lastBook[c.key]||(p?'':'기록 없음'))}</small></div><div class="us">${us}</div><div class="pc">${p}%${p!==conf?`<small>기록 확인 ${conf}%</small>`:''}</div></div>`;});
+  tiers+='</div>';
+  // months
+  const ml=d.months.map(M=>`<div class="m"><span class="chip ${M.mode==='내신 집중'?'cw':'ci'}">${+M.m.slice(5)}월 · ${M.mode}</span><ul><li>수업 ${M.att}회${M.abs?` · 결석 ${M.abs}회`:''}</li>${[...M.units].slice(0,4).map(u=>`<li>${e(u)}</li>`).join('')}${M.mid?`<li>중등 내신 학습 ${M.mid}건</li>`:''}${M.tn?`<li>테스트 ${M.tn}회 평균 ${M.tavg}%</li>`:''}${M.hw!=null?`<li>과제 이행 ${M.hw}%</li>`:''}</ul></div>`).join('');
+  // charts
+  const pts=d.testsP.map(x=>({x:x.date.slice(5).replace('-','/'),y:x.p,cat:x.cat,title:`${x.date.slice(5)} ${x.name}: ${x.p}% (${DR_CATN[x.cat]})`}));
+  const catsUsed=['M','U','R'].filter(k=>t[k]);
+  const hwRows=d.hwBooks.slice(0,6).map(b=>({l:b.b,v:b.v,c:b.v<75?DR_COL.M:DR_COL.U,tip:`${b.b}: ${b.v}% (과제 ${b.n}개)`}));
+  if(d.hardAvg!=null)hwRows.push({l:'고난도(C단계) 과제',v:d.hardAvg,c:d.hardAvg<75?DR_COL.M:DR_COL.U,tip:`고난도 과제 ${d.hard.length}개 평균 ${d.hardAvg}%`});
+  const errR=d.errRows.slice(0,8).map(g=>({l:g.g,v:g.w,c:DR_COL[g.type],tip:`${g.g}: ${g.w}문항 (전체의 ${Math.round(g.w/Math.max(1,d.wrongSum)*100)}%, 미완료 ${g.miss}건)`}));
+  const errMax=Math.max(10,Math.ceil(Math.max(0,...errR.map(r=>r.v))/10)*10);
+  const lgd=k=>`<span><span class="dot" style="background:${DR_COL[k]}"></span>${DR_CATN[k]}</span>`;
+  const sumanCard=d.suman?`<div class="card wide"><h3>수만프 점수: 본인 vs 같은 시험 평균</h3><p class="cap">${e(d.suman.ver)}${d.suman.prev?` · 직전 내신 ${e(d.suman.prev)}점`:''}${d.suman.goalT?` · 교사 목표 ${e(d.suman.goalT)}점`:''}</p><div class="lg"><span><span class="dot" style="background:${DR_COL.U}"></span>${e(s.name)}</span><span><span class="dot" style="background:${DR_COL.M}"></span>같은 시험 평균</span></div>${drSvgGroup(d.suman.rows.map(r=>r.r),[{name:s.name,color:DR_COL.U,values:d.suman.rows.map(r=>r.me)},{name:'평균',color:DR_COL.M,values:d.suman.rows.map(r=>r.avg)}])}</div>`:'';
+  const testTbl=d.tests.map(x=>`<tr><td>${x.date.slice(5)}</td><td>${e(x.name)}</td><td>${DR_CATN[x.cat]}</td><td class="num">${x.tot?e(x.c)+'/'+e(x.tot):(x.p!=null?'점수':'-')}</td><td class="num">${x.p!=null?x.p+'%':'-'}</td></tr>`).join('');
+  const dxCol=(arr,cls,title,col)=>`<div class="col"><h3 style="color:${col}">${title}</h3>${arr.length?arr.map(x=>`<div class="it"><div class="t">${e(x.t)} <span class="chip ${cls}">${e(x.c)}</span></div><p>${e(x.p)}</p></div>`).join(''):'<div class="it"><p>해당 항목이 자동으로 감지되지 않았습니다. 상담 내용을 직접 적어 주세요.</p></div>'}</div>`;
+  const ctx=(pre1||/고$/.test(String(s.school||'').trim())&&String(s.grade)==='1')?`<section><div class="sh"><span class="eb">입시 환경 참고</span><h2>2028 대입제도에서 고1 수학이 중요한 이유</h2></div><div class="dx" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+    <div class="it"><div class="t">내신 5등급제</div><p>1등급은 상위 10%입니다. 공통수학1·2 성적이 전 학년 내신에 그대로 반영되어 고1 첫 시험의 비중이 커졌습니다.</p></div>
+    <div class="it"><div class="t">수능 선택과목 폐지</div><p>수능 수학은 대수·미적분Ⅰ·확률과 통계를 모든 수험생이 공통으로 봅니다. 미적분Ⅱ·기하는 수능에서 빠졌습니다.</p></div>
+    <div class="it"><div class="t">공통수학 개편</div><p>공통수학1에 행렬이 새로 들어오고 경우의 수가 1학기로 옮겨졌습니다. 도형의 방정식은 공통수학2(2학기)로 이동했습니다.</p></div></div></section>`:'';
+  const body=`<div class="wrap">
+<header><span class="eb">클라디수학학원 · 수업일지 기반 상세 학습분석 리포트</span><h1>${e(s.name)} 학생 학습분석 리포트</h1>
+ <div class="meta"><span>학교 <b>${e(s.school)} ${e(s.grade)}학년${pre1?' (예비고1)':''}</b></span><span>담당 <b>${e(s.teacher)} T</b></span>${days?`<span>정규 수업 <b>${e(days)}</b></span>`:''}<span>분석 기간 <b>${e(d.period)}</b></span><span>기록 <b>${tot}회</b> · 오답노트 <b>${d.notes.length}건</b> · 테스트 <b>${d.tests.length}회</b></span><span>생성일 <b>${todayStr()}</b></span></div></header>
+<section><div class="sh"><span class="eb">종합 평가</span><h2 contenteditable="true">${e(head)}</h2></div>
+ <div class="box" contenteditable="true"><p>${summary}</p>${summary2?`<p>${summary2}</p>`:''}<div class="chips">${dx.S.slice(0,3).map(x=>`<span class="chip cg">✓ ${e(x.t)}</span>`).join('')}${dx.W.slice(0,3).map(x=>`<span class="chip cw">! ${e(x.t)}</span>`).join('')}</div></div>
+ <div class="kpis">${kp}</div></section>
+<section><div class="sh"><span class="eb">고등학교 전체 진도</span><h2>2022 개정 교육과정 기준 현재 위치</h2><p class="lead">수업일지·과제·테스트·오답노트에 나온 단원명을 교육과정 단원에 자동 매핑했습니다. 뒤 단원이나 상위 과목을 배운 기록이 있으면 앞 단원·선수 과목은 ‘완료 추정’으로 표시합니다.</p></div>
+ <div class="box" style="gap:16px"><div class="ov"><div class="ovi"><div class="lb"><span>고1 과정 (공통수학1·2)</span><b>${d.g1}%</b></div><div class="bar"><i style="width:${d.g1}%"></i></div></div><div class="ovi"><div class="lb"><span>고교 수학 7과목 전체</span><b>${d.all7}%</b></div><div class="bar"><i style="width:${d.all7}%"></i></div></div><div class="ovi"><div class="lb"><span>수능 출제 3과목</span><b>${d.sat}%</b></div><div class="bar"><i style="width:${d.sat}%"></i></div></div></div>
+ ${tiers}
+ <div class="lg"><span><i style="background:#2a78d6"></i>완료 (기록 확인)</span><span><i style="background:repeating-linear-gradient(135deg,#2a78d6 0 4px,#cfe0f7 4px 6px)"></i>완료 추정</span><span><i style="background:linear-gradient(90deg,#9ec5f4 50%,#eceff3 50%)"></i>진행 중</span><span><i style="background:#eceff3"></i>미시작</span></div>
+ <p class="mini">진도율은 기록 기반 추정치입니다. 대단원 폭은 교재 분량 비중(예: 공통수학1 다항식 25%, 방정식과 부등식 40%, 경우의 수 20%, 행렬 15%)을 반영했습니다. 추정 항목은 상담 시 확인해 주세요.</p></div></section>
+${ml?`<section><div class="sh"><span class="eb">월별 학습 흐름</span><h2>월별 학습 흐름</h2></div><div class="tl">${ml}</div></section>`:''}
+<section><div class="sh"><span class="eb">성취 데이터</span><h2>테스트·과제·오답 분석</h2></div><div class="charts">
+ <div class="card wide"><h3>테스트 정답률 추이</h3><p class="cap">점에 마우스를 올리면 테스트 이름과 정답률이 보입니다.${t.M&&t.U?` 중등 내신 대비 평균 ${t.M.v}%, 고등 단원 테스트 평균 ${t.U.v}%입니다.`:''}${t.R?` 실전 모의·고교 기출 평균은 ${t.R.v}%입니다.`:''}</p><div class="lg">${catsUsed.map(lgd).join('')}</div>${drSvgLine(pts)}</div>
+ ${sumanCard}
+ <div class="card wide"><h3>교재별 과제 이행률</h3><p class="cap">과제 2개 이상 기록된 교재 기준${d.hardAvg!=null?`, 고난도(C단계) 과제는 평균 ${d.hardAvg}%`:''}입니다.</p>${drSvgHBars(hwRows,{max:100,ticks:[0,50,100],suf:'%'})}</div>
+ <div class="card wide"><h3>단원별 오답 문항 수 (총 ${d.wrongSum}문항)</h3><p class="cap">${d.errRows[0]?`가장 많은 영역은 ‘${e(d.errRows[0].g)}’(${d.errRows[0].w}문항)입니다.`:'오답노트 기록이 없습니다.'}</p><div class="lg">${['U','M','R'].filter(k=>d.errRows.some(g=>g.type===k)).map(k=>`<span><span class="dot" style="background:${DR_COL[k]}"></span>${{U:'고등 과정',M:'중등 과정',R:'모의고사·고교 기출'}[k]}</span>`).join('')}</div>${drSvgHBars(errR,{max:errMax,ticks:[0,errMax/2,errMax]})}</div>
+</div>${d.tests.length?`<details><summary class="mini" style="cursor:pointer">테스트 원자료 보기 (${d.tests.length}회)</summary><div class="tbl" style="margin-top:8px"><table><thead><tr><th>날짜</th><th>테스트</th><th>구분</th><th class="num">정답/문항</th><th class="num">정답률</th></tr></thead><tbody>${testTbl}</tbody></table></div></details>`:''}</section>
+<section><div class="sh"><span class="eb">전문가 진단</span><h2>학습 패턴 분석</h2><p class="mini">규칙 기반 자동 초안입니다. 문장을 클릭하면 직접 고칠 수 있습니다.</p></div><div class="dx" contenteditable="true">${dxCol(dx.S,'cg','강점','#0f7a3a')}${dxCol(dx.W,'cw','보완점','#8a5a00')}</div></section>
+<section><div class="sh"><span class="eb">향후 계획</span><h2>${pl.title}</h2><p class="lead">${pl.lead}</p></div>
+ <div class="tbl" contenteditable="true"><table><thead><tr>${pl.cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${pl.rows.map(r=>`<tr><td style="white-space:nowrap;font-weight:700">${e(r[0])}</td><td>${e(r[1])}</td><td>${e(r[2])}</td></tr>`).join('')}</tbody></table></div>
+ ${dx.W.length?`<div class="goals" contenteditable="true">${dx.W.slice(0,3).map(w=>`<div class="goal"><b style="color:#14181f">${e(w.t)}</b><br>${e(w.g)}</div>`).join('')}</div>`:''}
+ <div class="box" contenteditable="true"><h3>선생님 코멘트</h3><p class="mini">여기를 클릭해 상담 내용이나 학부모 전달 사항을 적어 주세요.</p></div></section>
+${ctx}
+<footer><p>이 리포트는 클라디수학학원 수업일지 시스템의 기록(수업일지·오답노트${d.suman?'·수만프':''})을 바탕으로 자동 생성되었습니다. 진도율·단원 매핑·진단 문장은 추정 및 초안이며, 시스템에 없는 정보(결석 사유, 학교 시험 결과 등)는 반영되지 않았습니다.</p>
+<ul><li><a href="https://www.localnaeil.com/News/View/652199" target="_blank" rel="noopener">내일교육 · 2022 개정교육과정 수학 교과의 변화</a></li><li><a href="https://www.korea.kr/news/policyNewsView.do?newsId=148942032" target="_blank" rel="noopener">대한민국 정책브리핑 · 2028 대입제도 개편</a></li><li><a href="https://m.seoul.co.kr/news/2023/12/28/20231228008007" target="_blank" rel="noopener">서울신문 · 2028 수능 문·이과 통합 출제</a></li></ul></footer></div>`;
+  return body;}
+const DR_POP_JS="function drSave(){var d=document.documentElement.cloneNode(true);var t=d.querySelector('.rtop');if(t)t.remove();d.querySelectorAll('[contenteditable]').forEach(function(e){e.removeAttribute('contenteditable')});d.querySelectorAll('script').forEach(function(s){s.remove()});var b=new Blob(['<!DOCTYPE html>'+d.outerHTML],{type:'text/html;charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=document.title+'.html';document.body.appendChild(a);a.click();a.remove();}";
+function drDoc(d,toolbar){return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${drEsc(d.s.name)}_상세학습분석리포트</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"><style>${DR_CSS}</style></head><body>`+
+  (toolbar?`<div class="rtop"><span>점선 영역은 클릭해서 고칠 수 있습니다. 고친 뒤 인쇄하거나 HTML로 저장하세요.</span><button onclick="window.print()">🖨 인쇄 / PDF</button><button onclick="drSave()">⬇ HTML 저장</button><button class="x" onclick="window.close()">✕ 닫기</button></div><script>${DR_POP_JS}<\/script>`:'')+drHTML(d)+`</body></html>`;}
+function openDetailReport(id){const s=studentById(id);if(!s){toast('학생 정보를 찾을 수 없습니다');return;}
+  const [from,end]=getRepRange();let d;try{d=drBuild(id,from,end);}catch(err){console.error(err);toast('상세 리포트 생성 중 오류가 발생했습니다');return;}
+  if(!d.js.length){toast('선택한 기간에 수업일지 기록이 없습니다');return;}
+  const w=window.open('','_blank','width=1080,height=1000,scrollbars=yes,resizable=yes');
+  if(!w){dl(`${s.name}_상세학습분석리포트.html`,drDoc(d,false),'text/html;charset=utf-8');toast('팝업이 차단되어 HTML 파일로 저장했습니다');return;}
+  w.document.open();w.document.write(drDoc(d,true));w.document.close();}
+function genDetailReport(){const id=document.getElementById('repStudent').value;if(!id){toast('학생을 선택하세요');return;}openDetailReport(id);}
 
 /* ===== 종합 분석 (관리자) ===== */
 function renderAnalysis(){const at=document.getElementById('anTeacher');if(at&&!at.dataset.filled){at.innerHTML='<option value="">전체</option>'+DB.teachers.map(t=>`<option>${t}</option>`).join('');at.dataset.filled='1';}
