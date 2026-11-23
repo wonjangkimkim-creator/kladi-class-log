@@ -351,7 +351,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=23, APP_VERSION="v3.3";
+const APP_BUILD=24, APP_VERSION="v3.4";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -1030,7 +1030,42 @@ const DR_MID=/(^|[^0-9-])[1-3]-[12](?![0-9-])|중\s*[1-3]|중등|PRE[\s-]*TEST|�
 const DR_MID_UNIT=/삼각비|원주각|원의\s*성질|원과\s*직선|대푯값|산포도|상관|제곱근|피타고라스/;
 const DR_HARD=/C\s*(단계|스텝|step)|고난|킬러/i;
 const DR_COL={U:'#2a78d6',M:'#eb6834',R:'#1baf7a'};
-const DR_CATN={U:'고등 단원 테스트',M:'중등 내신 대비',R:'실전 모의·고교 기출'};
+const DR_CATN={U:'고등 단원 테스트',M:'중등 과정 테스트',R:'실전 모의·고교 기출'};
+/* 중학교 수학 6개 학기 · 교과서 대단원 (학기별 w 합 100) */
+const DR_MSEM=['1-1','1-2','2-1','2-2','3-1','3-2'];
+const DR_MCURR=[
+ {sem:0,n:'소인수분해',w:20,k:/소인수|소수와\s*합성수|공약수|공배수|거듭제곱/},
+ {sem:0,n:'정수와 유리수',w:25,k:/정수|유리수(?!와\s*순환)|절댓값|수직선/},
+ {sem:0,n:'문자와 식',w:30,k:/문자와\s*식|문자의\s*사용|일차식|(?<!연립\s*)일차\s*방정식|(?<!부|항)등식/},
+ {sem:0,n:'좌표평면과 그래프',w:25,k:/좌표\s*평면|순서쌍|정비례|반비례/},
+ {sem:1,n:'기본 도형',w:25,k:/기본\s*도형|작도|합동|평행선|맞꼭지각|꼬인\s*위치|동위각|엇각|수직\s*이등분/},
+ {sem:1,n:'평면도형',w:25,k:/평면\s*도형|다각형|내각|외각|부채꼴/},
+ {sem:1,n:'입체도형',w:25,k:/입체\s*도형|다면체|회전체|겉넓이|부피/},
+ {sem:1,n:'자료의 정리와 해석',w:25,k:/자료의\s*정리|줄기|도수|히스토그램/},
+ {sem:2,n:'유리수와 순환소수',w:15,k:/순환\s*소수|유한\s*소수/},
+ {sem:2,n:'식의 계산',w:20,k:/식의\s*계산|지수\s*법칙|단항식|다항식\s*(의\s*)?(계산|덧셈|뺄셈)/},
+ {sem:2,n:'일차부등식',w:20,k:/부등식/},
+ {sem:2,n:'연립일차방정식',w:20,k:/연립/},
+ {sem:2,n:'일차함수',w:25,k:/일차\s*함수|기울기|(?<!이차\s*)함수/},
+ {sem:3,n:'삼각형의 성질',w:20,k:/삼각형의\s*성질|이등변|외심|내심/},
+ {sem:3,n:'사각형의 성질',w:20,k:/사각형|사변형|마름모/},
+ {sem:3,n:'도형의 닮음',w:25,k:/닮음|무게\s*중심|중점\s*연결/},
+ {sem:3,n:'피타고라스 정리',w:15,k:/피타고라스/},
+ {sem:3,n:'확률',w:20,k:/확률|경우의\s*수/},
+ {sem:4,n:'제곱근과 실수',w:25,k:/제곱근|무리수|실수와|근호|유리화/},
+ {sem:4,n:'곱셈공식과 인수분해',w:25,k:/곱셈\s*공식|다항식의\s*곱셈|인수\s*분해/},
+ {sem:4,n:'이차방정식',w:25,k:/이차\s*방정식|근의\s*공식/},
+ {sem:4,n:'이차함수',w:25,k:/이차\s*함수|포물선/},
+ {sem:5,n:'삼각비',w:35,k:/삼각비|탄젠트/},
+ {sem:5,n:'원의 성질',w:35,k:/원주각|원의\s*성질|원과\s*직선|접선|현의/},
+ {sem:5,n:'통계',w:30,k:/대푯값|산포도|분산|표준\s*편차|상관|산점도|상자\s*그림|통계/}];
+function drSemOf(t){const m=String(t||'').match(/(?<![0-9-])(?:중\s*)?([1-3])\s*-\s*([12])(?![0-9-])/);return m?(+m[1]-1)*2+(+m[2]-1):null;}
+function drElemOf(t){const m=String(t||'').match(/(?<![0-9-])(?:초\s*)?([4-6])\s*-\s*([12])(?![0-9-])/);return m?m[1]+'-'+m[2]:null;}
+function drMidLoc(t,cs){t=String(t||'');const sm=drSemOf(t);const hits=DR_MCURR.map((x,i)=>x.k.test(t)?i:-1).filter(i=>i>=0);
+  if(sm!=null){const h=hits.find(i=>DR_MCURR[i].sem===sm);return {sem:sm,u:h!=null?h:-1};}
+  if(!hits.length)return {sem:-1,u:-1};
+  const h=cs?hits.find(i=>cs.has(DR_MCURR[i].sem)):undefined;const u=h!=null?h:hits[0];return {sem:DR_MCURR[u].sem,u};}
+const drMName=i=>'중'+DR_MSEM[DR_MCURR[i].sem]+' '+DR_MCURR[i].n;
 function drEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function drAvg(a){a=a.filter(x=>x!=null&&!isNaN(x));return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;}
 function drDays(a,b){return (Date.parse(b)-Date.parse(a))/864e5;}
@@ -1077,27 +1112,33 @@ function drBuild(id,from,end){const s=studentById(id);const inR=d=>(!from||(d||'
   const ctxOf=j=>{const c=new Set();[...(j.subjects||[]),...composedBooks(j),...(j.lesson||[]).map(l=>l.book),...(j.lastHw||[]).map(h=>h.book)].forEach(t=>{const x=drSubjOf(t);if(x)c.add(x);});return c;};
   const GLOBAL=new Set();act.forEach(j=>ctxOf(j).forEach(x=>GLOBAL.add(x)));
   const ctxFor=j=>{const c=j?ctxOf(j):new Set();return c.size?c:GLOBAL;};
+  const sch=String(s.school||'').trim(),gr=parseInt(s.grade)||0,isMid=/중$/.test(sch),isElem=/초$/.test(sch);
+  const semCtx=j=>{const c=new Set();if(j)[...(j.subjects||[]),...composedBooks(j),...(j.lesson||[]).map(l=>l.book),...(j.lastHw||[]).map(h=>h.book)].forEach(t=>{const x=drSemOf(t);if(x!=null)c.add(x);});return c;};
+  const cls=(t,ctx,cs)=>{if(isElem&&drElemOf(t)&&drSemOf(t)==null)return {s:'E',u:-1,el:drElemOf(t)};const c=drClassify(t,ctx);if(c.s==='M')c.ml=drMidLoc(t,cs);return c;};
   const items=[];
-  act.forEach(j=>{const ctx=ctxFor(j);
-    (j.lesson||[]).forEach(l=>{if(!String(l.val||'').trim())return;const t=(l.book||'')+' '+l.val;items.push({date:j.date,kind:'lesson',t,book:l.book||'',...drClassify(t,ctx)});});
-    (j.lastHw||[]).forEach(h=>{if(!String(h.val||'').trim())return;const t=(h.book||'')+' '+h.val;const r=(h.rate===''||h.rate==null||isNaN(+h.rate))?null:+h.rate;items.push({date:j.date,kind:'hw',t,book:String(h.book||'').trim(),rate:r,...drClassify(t,ctx)});});});
+  act.forEach(j=>{const ctx=ctxFor(j),cs=semCtx(j);
+    (j.lesson||[]).forEach(l=>{if(!String(l.val||'').trim())return;const t=(l.book||'')+' '+l.val;items.push({date:j.date,kind:'lesson',t,book:l.book||'',...cls(t,ctx,cs)});});
+    (j.lastHw||[]).forEach(h=>{if(!String(h.val||'').trim())return;const t=(h.book||'')+' '+h.val;const r=(h.rate===''||h.rate==null||isNaN(+h.rate))?null:+h.rate;items.push({date:j.date,kind:'hw',t,book:String(h.book||'').trim(),rate:r,...cls(t,ctx,cs)});});});
   // 테스트 (이월 중복 정리: 완료본 1회, 없으면 마지막 기록)
   const tmap=new Map();
-  act.forEach(j=>{const ctx=ctxFor(j);(j.tests||[]).forEach(t=>{const nm=String(t.name||'').trim();if(!nm)return;
+  act.forEach(j=>{const ctx=ctxFor(j),cs=semCtx(j);(j.tests||[]).forEach(t=>{const nm=String(t.name||'').trim();if(!nm)return;
     let p=null;const tot=+t.total,c=+t.correct;if(tot>0&&t.correct!==''&&t.correct!=null&&!isNaN(c))p=Math.round(c/tot*1000)/10;else if(t.score!==''&&t.score!=null&&!isNaN(parseFloat(t.score)))p=parseFloat(t.score);
     const base=nm.replace(/\s*\(이월\)/g,'').trim();const rec={date:j.date,name:base,p,c:t.correct,tot:t.total,done:t.errDone==='완료',cat:drTestCat(base,ctx),cls:drClassify(base,ctx)};
+    if(rec.cat==='M'){const ml=drMidLoc(base,cs);if(ml.sem>=0)rec.ml=ml;else if(isElem&&drElemOf(base))rec.el=drElemOf(base);}
     const prev=tmap.get(base);if(prev)rec.date=prev.date; // 이월 테스트는 처음 응시한 날짜로 표시
     if(!prev||rec.done||!prev.done)tmap.set(base,rec);});});
   const tests=[...tmap.values()].sort((a,b)=>a.date.localeCompare(b.date));const testsP=tests.filter(t=>t.p!=null);
   tests.filter(t=>t.cat==='U'&&t.cls.u>=0).forEach(t=>items.push({date:t.date,kind:'test',t:t.name,...t.cls}));
+  tests.filter(t=>t.ml||t.el).forEach(t=>items.push({date:t.date,kind:'test',t:t.name,s:t.ml?'M':'E',u:-1,ml:t.ml,el:t.el}));
   // 오답노트
   const notes=DB.errorNotes.filter(e=>e.studentId===id&&inR(e.date)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const errGroups={};let wrongSum=0,fixSum=0,doneWrong=0;
   notes.forEach(e=>{const j=act.find(x=>x.date===e.date);const ctx=ctxFor(j);const t=(e.book||'')+' '+(e.unit||'');const w=+e.wrong||0;wrongSum+=w;
     if(e.status==='완료'){doneWrong+=w;fixSum+=(+e.correct||0);}
     let g,type;if(drTestCat(t,ctx)==='R'&&!drSubjOf(t)){g='모의고사·고교 기출';type='R';}
-    else{const c=drClassify(t,ctx);if(c.s&&c.s!=='M'&&c.u>=0){g=DR_MAP[c.s].name+' '+DR_MAP[c.s].units[c.u].n;type='U';items.push({date:e.date,kind:'err',t,...c});}
-      else if(c.s==='M'){g='중등 '+drMidUnit(t);type='M';}else{g='기타';type='M';}}
+    else{const c=cls(t,ctx,semCtx(j));if(c.s&&c.s!=='M'&&c.s!=='E'&&c.u>=0){g=DR_MAP[c.s].name+' '+DR_MAP[c.s].units[c.u].n;type='U';items.push({date:e.date,kind:'err',t,...c});}
+      else if(c.s==='M'){g=c.ml&&c.ml.u>=0?drMName(c.ml.u):'중등 '+drMidUnit(t);type='M';items.push({date:e.date,kind:'err',t,...c});}
+      else if(c.s==='E'){g='초등 '+c.el;type='M';items.push({date:e.date,kind:'err',t,...c});}else{g='기타';type='M';}}
     const G=errGroups[g]=errGroups[g]||{g,type,w:0,n:0,miss:0};G.w+=w;G.n++;if(e.status!=='완료')G.miss++;});
   // 단원 진행 상태
   const lastDate=js.length?js[js.length-1].date:todayStr();
@@ -1115,6 +1156,22 @@ function drBuild(id,from,end){const s=studentById(id);const inR=d=>(!from||(d||'
   const all7=Math.round(DR_CURR.reduce((a,c)=>a+subjPct[c.key],0)/7);
   const sat=Math.round((subjPct['대수']+subjPct['미1']+subjPct['확통'])/3);
   const curList=[];DR_CURR.forEach(c=>status[c.key].forEach((x,i)=>{if(x==='cur')curList.push(c.name+' '+c.units[i].n);}));
+  // 중등 과정 진도 (6개 학기)
+  const mon=+lastDate.slice(5,7)||1,sem2=mon>=8||mon<=2;
+  const schoolSem=isMid&&gr>=1&&gr<=3?(gr-1)*2+(sem2?1:0):null; // 학교에서 지금 배우는 학기
+  const schoolDone=schoolSem==null?0:schoolSem+(mon<=2?1:0);       // 이 학기 이전은 학교에서 이수
+  const TM={},semAny=new Set(),elSet=new Set();
+  items.forEach(it=>{if(it.el)elSet.add(it.el);if(it.s!=='M'||!it.ml)return;if(it.ml.sem>=0)semAny.add(it.ml.sem);if(it.ml.u>=0&&(!TM[it.ml.u]||TM[it.ml.u]<it.date))TM[it.ml.u]=it.date;});
+  const mIdx=Object.keys(TM).map(Number),maxU=mIdx.length?Math.max(...mIdx):-1,maxSem=semAny.size?Math.max(...semAny):-1;
+  const hsTouched=Object.keys(touched).length>0;
+  let curM=-1;if(mIdx.length){const lt=mIdx.slice().sort((a,b)=>TM[b].localeCompare(TM[a])||b-a)[0];if(drDays(TM[lt],lastDate)<=21)curM=lt;}
+  const mStatus=DR_MCURR.map((x,i)=>TM[i]!=null?(i===curM?'cur':'done'):((i<maxU||x.sem<maxSem||x.sem<schoolDone||hsTouched)?'est':'none'));
+  const semP=wt=>DR_MSEM.map((_,k)=>Math.round(DR_MCURR.reduce((a,x,i)=>a+(x.sem===k?x.w*(wt[mStatus[i]]||0):0),0)));
+  const semPct=semP({done:1,est:1,cur:.5}),semPctC=semP({done:1,cur:.5});
+  const mAll=Math.round(semPct.reduce((a,b)=>a+b,0)/6);
+  const gradePct=schoolSem!=null?Math.round((semPct[(gr-1)*2]+semPct[(gr-1)*2+1])/2):null;
+  const ahead=schoolSem!=null&&maxSem>=0?maxSem-schoolSem:null;
+  if(curM>=0)curList.push(drMName(curM));
   const lastTouch=k=>{const T=touched[k];return T?Object.values(T).sort().pop():null;};
   // 출석·과제
   const absJ=js.filter(j=>j.absent);const makeup=absJ.filter(a=>act.some(j=>j.date>a.date&&drDays(a.date,j.date)<=1)).length;
@@ -1132,15 +1189,22 @@ function drBuild(id,from,end){const s=studentById(id);const inR=d=>(!from||(d||'
   const suman=drSuman(s);
   // 월별 흐름
   const months={};js.forEach(j=>{const m=j.date.slice(0,7);const M=months[m]=months[m]||{m,att:0,abs:0,units:new Set(),mid:0,hs:0};if(j.absent)M.abs++;else M.att++;});
-  items.forEach(it=>{const M=months[(it.date||'').slice(0,7)];if(!M)return;if(it.s==='M')M.mid++;else if(it.s&&it.u>=0){M.hs++;M.units.add(DR_MAP[it.s].name+' '+DR_MAP[it.s].units[it.u].n);}});
-  Object.values(months).forEach(M=>{const ts=testsP.filter(t=>t.date.slice(0,7)===M.m);M.tn=ts.length;M.tavg=drAvg(ts.map(t=>t.p));M.hw=drAvg(hw.filter(h=>h.date.slice(0,7)===M.m).map(h=>h.rate));M.mode=M.mid>M.hs?'내신 집중':(M.hs?'선행':'기록');});
-  return {s,js,act,absJ,makeup,period:js.length?js[0].date+' ~ '+lastDate:'-',lastDate,status,subjPct,pctC,g1,all7,sat,curList,touched,lastTouch,lastBook,hw,hwAvg,hwBooks,hard,hardAvg,tests,testsP,tAvg,cumAvg,singleAvg,minT,notes,errRows,errMiss,errDoneRate,fixRate,wrongSum,fixSum,suman,months:Object.values(months).sort((a,b)=>a.m.localeCompare(b.m))};}
+  items.forEach(it=>{const M=months[(it.date||'').slice(0,7)];if(!M)return;M.mu=M.mu||new Set();
+    if(it.s==='M'||it.s==='E'){M.mid++;if(it.ml&&it.ml.u>=0)M.mu.add(drMName(it.ml.u));else if(it.el)M.mu.add('초등 '+it.el);}
+    else if(it.s&&it.u>=0){M.hs++;M.units.add(DR_MAP[it.s].name+' '+DR_MAP[it.s].units[it.u].n);}});
+  Object.values(months).forEach(M=>{const ts=testsP.filter(t=>t.date.slice(0,7)===M.m);M.tn=ts.length;M.tavg=drAvg(ts.map(t=>t.p));M.hw=drAvg(hw.filter(h=>h.date.slice(0,7)===M.m).map(h=>h.rate));M.mode=M.mid>M.hs?'중등 과정':(M.hs?'고등 선행':'기록');M.mu=[...(M.mu||[])];});
+  return {s,js,act,absJ,makeup,period:js.length?js[0].date+' ~ '+lastDate:'-',lastDate,status,subjPct,pctC,g1,all7,sat,curList,touched,lastTouch,lastBook,hw,hwAvg,hwBooks,hard,hardAvg,tests,testsP,tAvg,cumAvg,singleAvg,minT,notes,errRows,errMiss,errDoneRate,fixRate,wrongSum,fixSum,suman,
+    isMid,isElem,gr,schoolSem,mStatus,semPct,semPctC,mAll,gradePct,maxSem,ahead,hsTouched,semAny,elSems:[...elSet].sort(),
+    months:Object.values(months).sort((a,b)=>a.m.localeCompare(b.m))};}
 
 function drDiagnose(d){const S=[],W=[],att=d.act.length,tot=d.js.length,attR=tot?att/tot*100:0;const t=d.tAvg;
   const higher=['대수','미1','확통','미2','기하'].filter(k=>d.touched[k]);
-  if(t.M&&t.M.v>=88)S.push({t:'중등 내신 상위권',c:`중등 테스트 ${t.M.v}%`,p:`중등 내신 대비 테스트 ${t.M.n}회 평균 ${t.M.v}%입니다.`+(d.suman?` 수만프 평균 ${drAvg(d.suman.rows.map(r=>r.me))}점으로 같은 시험 평균 ${drAvg(d.suman.rows.map(r=>r.avg))}점보다 높습니다.`:'')});
+  if(t.M&&t.M.v>=88)S.push({t:'중등 과정 상위권',c:`중등 테스트 ${t.M.v}%`,p:`중등 과정 테스트 ${t.M.n}회 평균 ${t.M.v}%입니다.`+(d.suman?` 수만프 평균 ${drAvg(d.suman.rows.map(r=>r.me))}점으로 같은 시험 평균 ${drAvg(d.suman.rows.map(r=>r.avg))}점보다 높습니다.`:'')});
   if(higher.length)S.push({t:'선행 범위',c:DR_MAP[higher[higher.length-1]].name+' 학습',p:`수업일지에서 ${higher.map(k=>DR_MAP[k].name).join('·')} 학습이 확인됩니다. 공통수학 이후 과정까지 진도가 나가 있습니다.`});
   else if(d.g1>=60)S.push({t:'고1 과정 선행',c:`고1 과정 ${d.g1}%`,p:`공통수학1 ${d.subjPct['공1']}%, 공통수학2 ${d.subjPct['공2']}%까지 진행했습니다(기록 이전 학습 추정 포함).`});
+  else if((d.isMid||d.isElem)&&d.hsTouched){const hn=DR_CURR.filter(c=>d.touched[c.key]).map(c=>c.name);S.push({t:'고등 과정 선행',c:hn.join('·'),p:`${d.isElem?'초등':'중'+d.gr}학년이지만 ${hn.join('·')} 학습 기록이 있습니다. 중등 과정은 이미 마친 것으로 보고 ‘완료 추정’으로 표시했습니다.`});}
+  else if(d.isElem&&d.maxSem>=0)S.push({t:'중등 과정 선행',c:`중${DR_MSEM[d.maxSem]}까지`,p:`초등학생이지만 중${DR_MSEM[d.maxSem]} 과정까지 학습 기록이 있습니다(중등 진도율 ${d.mAll}%).`});
+  else if(d.isMid&&d.ahead>=1)S.push({t:'학년 대비 선행',c:`${d.ahead}학기 선행`,p:`학교 진도(중${DR_MSEM[d.schoolSem]})보다 ${d.ahead}학기 앞선 중${DR_MSEM[d.maxSem]} 과정까지 학습 기록이 있습니다.`});
   if(d.hwAvg!=null&&d.hwAvg>=90)S.push({t:'과제 성실도',c:`과제 ${d.hwAvg}%`,p:`과제 ${d.hw.length}개의 평균 이행률이 ${d.hwAvg}%입니다.`});
   else if(d.hwBooks[0]&&d.hwBooks[0].v>=95)S.push({t:'개념서 과제 완수',c:`${d.hwBooks[0].b} ${d.hwBooks[0].v}%`,p:`${d.hwBooks[0].b} 과제를 ${d.hwBooks[0].n}회 중 거의 모두 완수했습니다.`});
   if(d.errDoneRate!=null&&d.errDoneRate>=90&&d.notes.length>=5)S.push({t:'오답 관리 습관',c:`오답 완료 ${d.errDoneRate}%`,p:`오답노트 ${d.notes.length}건 중 ${d.notes.length-d.errMiss}건을 완료했고${d.fixRate!=null?`, 재풀이 정답률은 ${d.fixRate}%`:''}입니다.`});
@@ -1166,7 +1230,7 @@ function drPlan(d,dx){const s=d.s;const pre1=String(s.grade)==='3'&&/중$/.test(
   const has=t=>dx.W.some(w=>w.t===t);
   if(!pre1){const last=d.act[d.act.length-1];const nx=last?(last.nextHw||[]).filter(h=>h.val).map(h=>`${h.book||''} ${h.val}`.trim()):[];
     return {title:'다음 4주 학습 제안',lead:'최근 수업일지의 다음 과제와 진단 결과를 바탕으로 한 제안입니다.',rows:[
-      ['1–2주차',(curU('공1').concat(curU('공2')).length?`진행 중 단원 마무리: ${d.curList.join(', ')}`:'현재 단원 마무리')+(nx.length?` · 다음 과제: ${nx.join(', ')}`:''),'단원 테스트'],
+      ['1–2주차',(d.curList.length?`진행 중 단원 마무리: ${d.curList.join(', ')}`:'현재 단원 마무리')+(nx.length?` · 다음 과제: ${nx.join(', ')}`:''),'단원 테스트'],
       ['3–4주차',dx.W.length?dx.W.slice(0,2).map(w=>w.g).join(' · '):'현재 학습 페이스 유지, 누적 복습','누적 테스트 1회']],cols:['기간','학습 내용','점검']};}
   const rows=[];const p1=[],p2=[],p3=[];
   const c1=curU('공1'),c2=curU('공2'),l1=left('공1'),l2=left('공2');
@@ -1231,8 +1295,12 @@ footer{border-top:1px solid #e3e6eb;padding-top:14px;font-size:12px;color:#8a919
 function drHTML(d){const s=d.s,dx=drDiagnose(d),pl=drPlan(d,dx),e=drEsc,pre1=String(s.grade)==='3'&&/중$/.test(String(s.school||'').trim());
   const att=d.act.length,tot=d.js.length,t=d.tAvg,days=String(s.days||'').split('').filter(Boolean).join('·');
   const higher=['대수','미1','확통','미2','기하'].filter(k=>d.touched[k]);
-  const head=`고1 과정 ${d.g1}% 진행`+(dx.W[0]?` · 핵심 과제: ${dx.W[0].t}`:' · 현재 페이스 유지');
-  const summary=`${e(s.name)} 학생은 분석 기간에 ${att}회 수업에 참여했습니다(출석 ${att}/${tot}). `+(d.curList.length?`현재 진행 중인 단원은 ${e(d.curList.join(', '))}이고, `:'')+`고1 과정 진도율은 약 ${d.g1}%(기록 이전 학습 추정 포함)`+(higher.length?`이고 ${e(higher.map(k=>DR_MAP[k].name).join('·'))} 학습 기록도 있습니다.`:'입니다.');
+  const midStu=d.isMid||d.isElem,midMain=midStu&&!pre1,showHS=!midStu||pre1||d.hsTouched;
+  const head=(midMain?`중등 과정 ${d.mAll}% 진행`+(d.hsTouched?` · 고1 과정 ${d.g1}%`:''):`고1 과정 ${d.g1}% 진행`)+(dx.W[0]?` · 핵심 과제: ${dx.W[0].t}`:' · 현재 페이스 유지');
+  const hsNames=DR_CURR.filter(c=>d.touched[c.key]).map(c=>c.name).join('·');
+  const summary=`${e(s.name)} 학생은 분석 기간에 ${att}회 수업에 참여했습니다(출석 ${att}/${tot}). `+(d.curList.length?`현재 진행 중인 단원은 ${e(d.curList.join(', '))}이고, `:'')+
+    (midMain?`중등 과정 진도율은 약 ${d.mAll}%`+(d.gradePct!=null?`(현재 학년인 중${d.gr} 과정 ${d.gradePct}%)`:'')+(d.hsTouched?`이며, 중등 과정 이후 고등 과정(${e(hsNames)})까지 학습 중입니다.`:(d.ahead>=1?`로 학교 진도보다 ${d.ahead}학기 앞서 있습니다.`:'입니다.'))
+    :`고1 과정 진도율은 약 ${d.g1}%(기록 이전 학습 추정 포함)`+(higher.length?`이고 ${e(higher.map(k=>DR_MAP[k].name).join('·'))} 학습 기록도 있습니다.`:'입니다.'));
   const summary2=(dx.S[0]?`강점은 <b>${e(dx.S[0].t)}</b>(${e(dx.S[0].c)})`:'')+(dx.S[0]&&dx.W[0]?'이고, ':'')+(dx.W[0]?`우선 보완할 점은 <b>${e(dx.W[0].t)}</b>(${e(dx.W[0].c)})입니다. ${e(dx.W[0].p)}`:(dx.S[0]?'입니다.':''));
   const kpi=(k,v,u,sub)=>`<div class="kpi"><span class="k">${k}</span><span class="v">${v}<small>${u}</small></span><span class="s">${sub}</span></div>`;
   let kp=kpi('출석',att,` / ${tot}회`,`결석 ${tot-att}회`+(d.makeup?` · ${d.makeup}회 다음 날 보강`:''));
@@ -1241,14 +1309,28 @@ function drHTML(d){const s=d.s,dx=drDiagnose(d),pl=drPlan(d,dx),e=drEsc,pre1=Str
   if(d.suman)kp+=kpi('수만프 평균',drAvg(d.suman.rows.map(r=>r.me)),'점',`같은 시험 평균 ${drAvg(d.suman.rows.map(r=>r.avg))}점`);
   if(d.notes.length)kp+=kpi('오답 재풀이 정답률',d.fixRate!=null?d.fixRate:'-','%',`${d.wrongSum}문항 · 미완료 ${d.errMiss}건`);
   // roadmap
+  const ub=(n,w,x)=>{const lbl={done:'완료 (기록 확인)',est:'완료 추정 (기록 이전·학교 이수·선수 과정)',cur:'진행 중',none:'미시작'}[x];
+    return `<div class="u ${x}" style="flex:${w}" title="${e(n)}: ${lbl}">${x==='none'?'':`<div class="f" style="width:${x==='cur'?50:100}%"></div>`}<span>${e(n)}${x==='cur'?' ▸ 진행 중':''}</span></div>`;};
+  const pcCell=(p,conf)=>`<div class="pc">${p}%${p!==conf?`<small>기록 확인 ${conf}%</small>`:''}</div>`;
   let tiers='',lastTier='';DR_CURR.forEach(c=>{if(c.tier!==lastTier){tiers+=(lastTier?'</div>':'')+`<div style="display:grid;gap:9px"><div class="tier">${c.tier}</div>`;lastTier=c.tier;}
     const st=d.status[c.key];const conf=d.pctC(c.key),p=d.subjPct[c.key];
-    const us=c.units.map((u,i)=>{const x=st[i];const lbl={done:'완료 (기록 확인)',est:'완료 추정 (기록 이전/선수 과목)',cur:'진행 중',none:'미시작'}[x];
-      return `<div class="u ${x}" style="flex:${u.w}" title="${e(u.n)}: ${lbl}">${x==='none'?'':`<div class="f" style="width:${x==='cur'?50:100}%"></div>`}<span>${e(u.n)}${x==='cur'?' ▸ 진행 중':''}</span></div>`;}).join('');
-    tiers+=`<div class="sj"><div class="nm">${c.name}<small>${e(d.lastBook[c.key]||(p?'':'기록 없음'))}</small></div><div class="us">${us}</div><div class="pc">${p}%${p!==conf?`<small>기록 확인 ${conf}%</small>`:''}</div></div>`;});
+    const us=c.units.map((u,i)=>ub(u.n,u.w,st[i])).join('');
+    tiers+=`<div class="sj"><div class="nm">${c.name}<small>${e(d.lastBook[c.key]||(p?'':'기록 없음'))}</small></div><div class="us">${us}</div>${pcCell(p,conf)}</div>`;});
   tiers+='</div>';
+  const legend=`<div class="lg"><span><i style="background:#2a78d6"></i>완료 (기록 확인)</span><span><i style="background:repeating-linear-gradient(135deg,#2a78d6 0 4px,#cfe0f7 4px 6px)"></i>완료 추정</span><span><i style="background:linear-gradient(90deg,#9ec5f4 50%,#eceff3 50%)"></i>진행 중</span><span><i style="background:#eceff3"></i>미시작</span>${midStu?'<span>📍 학교에서 지금 배우는 학기</span>':''}</div>`;
+  const ovi=(l,v)=>`<div class="ovi"><div class="lb"><span>${l}</span><b>${v}%</b></div><div class="bar"><i style="width:${v}%"></i></div></div>`;
+  let midSec='';
+  if(midStu){let mr='';[0,1,2].forEach(g=>{mr+=`<div style="display:grid;gap:9px"><div class="tier">중학교 ${g+1}학년${d.isMid&&g+1===d.gr?' · 현재 학년':''}</div>`;
+      [g*2,g*2+1].forEach(k=>{const us=DR_MCURR.map((x,i)=>x.sem===k?ub(x.n,x.w,d.mStatus[i]):'').join('');const p=d.semPct[k],c=d.semPctC[k];
+        const sub=k===d.schoolSem?'📍 학교 진도':(d.semAny.has(k)&&!c?'기록 있음 · 단원명 없음':'');
+        mr+=`<div class="sj"><div class="nm">중${DR_MSEM[k]}<small>${sub}</small></div><div class="us">${us}</div>${pcCell(p,c)}</div>`;});
+      mr+='</div>';});
+    midSec=`<section><div class="sh"><span class="eb">중학교 전체 진도</span><h2>중등 수학 6개 학기 기준 현재 위치</h2><p class="lead">교재 학기 표기(예: 쎈 2-1)와 단원명을 중학교 교과서 대단원에 자동 매핑했습니다. 학교에서 이미 배운 학기, 뒤 단원을 배운 기록이 있는 앞 단원${d.hsTouched?', 고등 과정을 시작한 경우의 중등 과정':''}은 ‘완료 추정’으로 표시합니다.</p></div>
+ <div class="box" style="gap:16px"><div class="ov">${ovi('중등 과정 전체 (6개 학기)',d.mAll)}${d.gradePct!=null?ovi(`현재 학년 과정 (중${d.gr})`,d.gradePct):''}${d.hsTouched?ovi('고1 과정 (공통수학1·2)',d.g1):''}</div>
+ ${mr}${legend}
+ <p class="mini">${d.elSems.length?`초등 과정 학습 기록: ${e(d.elSems.join(', '))}. `:''}학기 안 대단원 폭은 교과서 분량 비중을 반영했습니다. 학교 진도는 학년과 마지막 수업일(${e(d.lastDate)})로 계산했으며, 진도율은 기록 기반 추정치입니다.</p></div></section>`;}
   // months
-  const ml=d.months.map(M=>`<div class="m"><span class="chip ${M.mode==='내신 집중'?'cw':'ci'}">${+M.m.slice(5)}월 · ${M.mode}</span><ul><li>수업 ${M.att}회${M.abs?` · 결석 ${M.abs}회`:''}</li>${[...M.units].slice(0,4).map(u=>`<li>${e(u)}</li>`).join('')}${M.mid?`<li>중등 내신 학습 ${M.mid}건</li>`:''}${M.tn?`<li>테스트 ${M.tn}회 평균 ${M.tavg}%</li>`:''}${M.hw!=null?`<li>과제 이행 ${M.hw}%</li>`:''}</ul></div>`).join('');
+  const ml=d.months.map(M=>`<div class="m"><span class="chip ${M.mode==='고등 선행'?'cg':'ci'}">${+M.m.slice(5)}월 · ${M.mode}</span><ul><li>수업 ${M.att}회${M.abs?` · 결석 ${M.abs}회`:''}</li>${[...M.units,...M.mu].slice(0,4).map(u=>`<li>${e(u)}</li>`).join('')}${M.mid&&!M.mu.length?`<li>중등 과정 학습 ${M.mid}건</li>`:''}${M.tn?`<li>테스트 ${M.tn}회 평균 ${M.tavg}%</li>`:''}${M.hw!=null?`<li>과제 이행 ${M.hw}%</li>`:''}</ul></div>`).join('');
   // charts
   const pts=d.testsP.map(x=>({x:x.date.slice(5).replace('-','/'),y:x.p,cat:x.cat,title:`${x.date.slice(5)} ${x.name}: ${x.p}% (${DR_CATN[x.cat]})`}));
   const catsUsed=['M','U','R'].filter(k=>t[k]);
@@ -1270,11 +1352,12 @@ function drHTML(d){const s=d.s,dx=drDiagnose(d),pl=drPlan(d,dx),e=drEsc,pre1=Str
 <section><div class="sh"><span class="eb">종합 평가</span><h2 contenteditable="true">${e(head)}</h2></div>
  <div class="box" contenteditable="true"><p>${summary}</p>${summary2?`<p>${summary2}</p>`:''}<div class="chips">${dx.S.slice(0,3).map(x=>`<span class="chip cg">✓ ${e(x.t)}</span>`).join('')}${dx.W.slice(0,3).map(x=>`<span class="chip cw">! ${e(x.t)}</span>`).join('')}</div></div>
  <div class="kpis">${kp}</div></section>
-<section><div class="sh"><span class="eb">고등학교 전체 진도</span><h2>2022 개정 교육과정 기준 현재 위치</h2><p class="lead">수업일지·과제·테스트·오답노트에 나온 단원명을 교육과정 단원에 자동 매핑했습니다. 뒤 단원이나 상위 과목을 배운 기록이 있으면 앞 단원·선수 과목은 ‘완료 추정’으로 표시합니다.</p></div>
+${midSec}
+${showHS?`<section><div class="sh"><span class="eb">고등학교 전체 진도</span><h2>${midMain?'고등 과정 선행 현황 (2022 개정 교육과정)':'2022 개정 교육과정 기준 현재 위치'}</h2><p class="lead">수업일지·과제·테스트·오답노트에 나온 단원명을 교육과정 단원에 자동 매핑했습니다. 뒤 단원이나 상위 과목을 배운 기록이 있으면 앞 단원·선수 과목은 ‘완료 추정’으로 표시합니다.</p></div>
  <div class="box" style="gap:16px"><div class="ov"><div class="ovi"><div class="lb"><span>고1 과정 (공통수학1·2)</span><b>${d.g1}%</b></div><div class="bar"><i style="width:${d.g1}%"></i></div></div><div class="ovi"><div class="lb"><span>고교 수학 7과목 전체</span><b>${d.all7}%</b></div><div class="bar"><i style="width:${d.all7}%"></i></div></div><div class="ovi"><div class="lb"><span>수능 출제 3과목</span><b>${d.sat}%</b></div><div class="bar"><i style="width:${d.sat}%"></i></div></div></div>
  ${tiers}
- <div class="lg"><span><i style="background:#2a78d6"></i>완료 (기록 확인)</span><span><i style="background:repeating-linear-gradient(135deg,#2a78d6 0 4px,#cfe0f7 4px 6px)"></i>완료 추정</span><span><i style="background:linear-gradient(90deg,#9ec5f4 50%,#eceff3 50%)"></i>진행 중</span><span><i style="background:#eceff3"></i>미시작</span></div>
- <p class="mini">진도율은 기록 기반 추정치입니다. 대단원 폭은 교재 분량 비중(예: 공통수학1 다항식 25%, 방정식과 부등식 40%, 경우의 수 20%, 행렬 15%)을 반영했습니다. 추정 항목은 상담 시 확인해 주세요.</p></div></section>
+ ${legend}
+ <p class="mini">진도율은 기록 기반 추정치입니다. 대단원 폭은 교재 분량 비중(예: 공통수학1 다항식 25%, 방정식과 부등식 40%, 경우의 수 20%, 행렬 15%)을 반영했습니다. 추정 항목은 상담 시 확인해 주세요.</p></div></section>`:''}
 ${ml?`<section><div class="sh"><span class="eb">월별 학습 흐름</span><h2>월별 학습 흐름</h2></div><div class="tl">${ml}</div></section>`:''}
 <section><div class="sh"><span class="eb">성취 데이터</span><h2>테스트·과제·오답 분석</h2></div><div class="charts">
  <div class="card wide"><h3>테스트 정답률 추이</h3><p class="cap">점에 마우스를 올리면 테스트 이름과 정답률이 보입니다.${t.M&&t.U?` 중등 내신 대비 평균 ${t.M.v}%, 고등 단원 테스트 평균 ${t.U.v}%입니다.`:''}${t.R?` 실전 모의·고교 기출 평균은 ${t.R.v}%입니다.`:''}</p><div class="lg">${catsUsed.map(lgd).join('')}</div>${drSvgLine(pts)}</div>
