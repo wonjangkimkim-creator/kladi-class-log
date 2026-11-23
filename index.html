@@ -351,7 +351,7 @@ code.blk{display:block;white-space:pre-wrap;background:var(--surface-2);border:1
 
 <script>
 const LS_KEY="suup_ilji_db_v6";
-const APP_BUILD=24, APP_VERSION="v3.4";
+const APP_BUILD=25, APP_VERSION="v3.5";
 const DEFAULT_FB_CFG={apiKey:"AIzaSyDu-7PR5CDyxPui_l0bCphjSzB3EBpfN5o",authDomain:"kladi-class-log.firebaseapp.com",databaseURL:"https://kladi-class-log-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kladi-class-log",storageBucket:"kladi-class-log.firebasestorage.app",messagingSenderId:"1003232365007",appId:"1:1003232365007:web:4647a620c5fb7518c36aba"};
 function doUpdateRefresh(){location.replace(location.pathname+'?u='+Date.now());}
 function showUpdateBanner(){var b=document.getElementById('updBanner');if(b)b.style.display='flex';}
@@ -1248,15 +1248,20 @@ function drPlan(d,dx){const s=d.s;const pre1=String(s.grade)==='3'&&/중$/.test(
   rows.push(['4단계 · 고1 3월','입학 후 학교 진도·부교재 중심 내신 체제 전환, 3월 학평(중학 전 범위) 대비 1회 점검','학교 프린트 수집']);
   return {title:'고1 입학 전 로드맵',lead:'원칙: 고1 1학기 중간고사 범위(공통수학1 다항식, 방정식과 부등식)를 내신 1등급(상위 10%) 수준으로 완성하는 것이 우선입니다.',rows,cols:['단계','학습 내용','점검 방식']};}
 
-function drSvgLine(pts){if(!pts.length)return '<div class="mini">점수가 기록된 테스트가 없습니다</div>';
-  const W=920,H=300,L=46,R=18,T=14,B=34;let lo=Math.min(...pts.map(p=>p.y));lo=Math.max(0,Math.min(60,Math.floor((lo-5)/10)*10));
-  const X=i=>L+(pts.length===1?(W-L-R)/2:i*(W-L-R)/(pts.length-1)),Y=v=>T+(100-v)/(100-lo)*(H-T-B);
-  let g='';const st=100-lo>40?20:10;for(let v=lo;v<=100;v+=st)g+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e8eaee"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#6b7280">${v}%</text>`;
-  const step=Math.max(1,Math.ceil(pts.length/9));let xl='';pts.forEach((p,i)=>{if(i%step===0)xl+=`<text x="${X(i)}" y="${H-12}" text-anchor="middle" font-size="11" fill="#6b7280">${drEsc(p.x)}</text>`;});
-  let s='';['M','U','R'].forEach(k=>{const cp=pts.map((p,i)=>({...p,i})).filter(p=>p.cat===k);if(!cp.length)return;
-    s+=`<polyline fill="none" stroke="${DR_COL[k]}" stroke-width="2" stroke-linejoin="round" points="${cp.map(p=>X(p.i).toFixed(1)+','+Y(p.y).toFixed(1)).join(' ')}"/>`;
-    s+=cp.map(p=>`<circle cx="${X(p.i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="4.5" fill="${DR_COL[k]}" stroke="#fff" stroke-width="2"><title>${drEsc(p.title)}</title></circle>`).join('');});
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="테스트 정답률 추이">${g}<line x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}" stroke="#cbd2db"/>${s}${xl}</svg>`;}
+/* 테스트별 가로 막대: 날짜 · 테스트명(+매핑 단원) · 정답률. 각 테스트는 범위가 달라 선으로 잇지 않는다 */
+function drTestUnit(x){if(x.cls&&x.cls.s&&DR_MAP[x.cls.s]&&x.cls.u>=0)return DR_MAP[x.cls.s].units[x.cls.u].n;if(x.ml&&x.ml.u>=0)return DR_MCURR[x.ml.u].n;return '';}
+function drSvgTests(rows){if(!rows.length)return '<div class="mini">점수가 기록된 테스트가 없습니다</div>';
+  const W=920,DW=54,NW=350,RW=62,rh=30,T=6,L=DW+NW,bw=W-L-RW,H=T+rows.length*rh+24,X=v=>L+v/100*bw,MAXC=27;
+  let s='';[0,50,80,100].forEach(v=>{s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H-20}" stroke="${v===80?'#c9d3df':'#eef0f3'}"${v===80?' stroke-dasharray="4 3"':''}/><text x="${X(v)}" y="${H-6}" font-size="11" text-anchor="middle" fill="#6b7280">${v}%${v===80?' 기준':''}</text>`;});
+  rows.forEach((x,i)=>{const y=T+i*rh,cy=y+rh/2;const un=drTestUnit(x);const showU=un&&!x.name.replace(/\s/g,'').includes(un.replace(/\s/g,''));
+    let nm=x.name,ut=showU?' · '+un:'';if(nm.length+ut.length>MAXC){if(nm.length>MAXC-4){nm=nm.slice(0,MAXC-1)+'…';ut='';}else ut=ut.slice(0,MAXC-nm.length-1)+'…';}
+    const tip=`${x.date} ${x.name}${un?' ('+un+')':''}: ${x.p}%${x.tot?` (${x.c}/${x.tot})`:''} · ${DR_CATN[x.cat]}`;
+    s+=`<g><title>${drEsc(tip)}</title>${i%2?'':`<rect x="0" y="${y}" width="${W}" height="${rh}" fill="#fafbfc"/>`}
+<text x="0" y="${cy+4}" font-size="12" fill="#6b7280">${x.date.slice(5).replace('-','/')}</text>
+<text x="${DW}" y="${cy+4}" font-size="12.5" fill="#14181f">${drEsc(nm)}<tspan fill="#8a919c">${drEsc(ut)}</tspan></text>
+<rect x="${L}" y="${y+8}" width="${bw}" height="${rh-16}" rx="4" fill="#eef0f3"/><rect x="${L}" y="${y+8}" width="${Math.max(3,x.p/100*bw).toFixed(1)}" height="${rh-16}" rx="4" fill="${DR_COL[x.cat]}"/>
+<text x="${W-RW+10}" y="${cy+4}" font-size="12.5" font-weight="${x.p<70?700:500}" fill="#14181f">${x.p}%</text></g>`;});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="테스트별 정답률">${s}</svg>`;}
 function drSvgHBars(rows,o){o=o||{};if(!rows.length)return '<div class="mini">데이터 없음</div>';
   const W=920,LW=250,RW=70,rh=32,T=4,H=T+rows.length*rh+22,max=o.max||Math.max(1,...rows.map(r=>r.v)),bw=W-LW-RW;
   let s='';(o.ticks||[0,Math.round(max/2),max]).forEach(t=>{const x=LW+t/max*bw;s+=`<line x1="${x}" x2="${x}" y1="${T}" y2="${H-20}" stroke="#eef0f3"/><text x="${x}" y="${H-6}" font-size="11" text-anchor="middle" fill="#6b7280">${t}${o.suf||''}</text>`;});
@@ -1332,7 +1337,7 @@ function drHTML(d){const s=d.s,dx=drDiagnose(d),pl=drPlan(d,dx),e=drEsc,pre1=Str
   // months
   const ml=d.months.map(M=>`<div class="m"><span class="chip ${M.mode==='고등 선행'?'cg':'ci'}">${+M.m.slice(5)}월 · ${M.mode}</span><ul><li>수업 ${M.att}회${M.abs?` · 결석 ${M.abs}회`:''}</li>${[...M.units,...M.mu].slice(0,4).map(u=>`<li>${e(u)}</li>`).join('')}${M.mid&&!M.mu.length?`<li>중등 과정 학습 ${M.mid}건</li>`:''}${M.tn?`<li>테스트 ${M.tn}회 평균 ${M.tavg}%</li>`:''}${M.hw!=null?`<li>과제 이행 ${M.hw}%</li>`:''}</ul></div>`).join('');
   // charts
-  const pts=d.testsP.map(x=>({x:x.date.slice(5).replace('-','/'),y:x.p,cat:x.cat,title:`${x.date.slice(5)} ${x.name}: ${x.p}% (${DR_CATN[x.cat]})`}));
+  const tRows=d.testsP.slice(-30);
   const catsUsed=['M','U','R'].filter(k=>t[k]);
   const hwRows=d.hwBooks.slice(0,6).map(b=>({l:b.b,v:b.v,c:b.v<75?DR_COL.M:DR_COL.U,tip:`${b.b}: ${b.v}% (과제 ${b.n}개)`}));
   if(d.hardAvg!=null)hwRows.push({l:'고난도(C단계) 과제',v:d.hardAvg,c:d.hardAvg<75?DR_COL.M:DR_COL.U,tip:`고난도 과제 ${d.hard.length}개 평균 ${d.hardAvg}%`});
@@ -1360,7 +1365,7 @@ ${showHS?`<section><div class="sh"><span class="eb">고등학교 전체 진도</
  <p class="mini">진도율은 기록 기반 추정치입니다. 대단원 폭은 교재 분량 비중(예: 공통수학1 다항식 25%, 방정식과 부등식 40%, 경우의 수 20%, 행렬 15%)을 반영했습니다. 추정 항목은 상담 시 확인해 주세요.</p></div></section>`:''}
 ${ml?`<section><div class="sh"><span class="eb">월별 학습 흐름</span><h2>월별 학습 흐름</h2></div><div class="tl">${ml}</div></section>`:''}
 <section><div class="sh"><span class="eb">성취 데이터</span><h2>테스트·과제·오답 분석</h2></div><div class="charts">
- <div class="card wide"><h3>테스트 정답률 추이</h3><p class="cap">점에 마우스를 올리면 테스트 이름과 정답률이 보입니다.${t.M&&t.U?` 중등 내신 대비 평균 ${t.M.v}%, 고등 단원 테스트 평균 ${t.U.v}%입니다.`:''}${t.R?` 실전 모의·고교 기출 평균은 ${t.R.v}%입니다.`:''}</p><div class="lg">${catsUsed.map(lgd).join('')}</div>${drSvgLine(pts)}</div>
+ <div class="card wide"><h3>테스트별 정답률${tRows.length<d.testsP.length?` (최근 ${tRows.length}회)`:''}</h3><p class="cap">날짜순입니다. 테스트명 뒤 회색 글씨는 자동 매핑된 단원이고, 점선은 80% 기준선입니다.${['M','U','R'].filter(k=>t[k]).map(k=>` ${DR_CATN[k]} 평균 ${t[k].v}%`).join(',')}${catsUsed.length?'.':''}</p><div class="lg">${catsUsed.map(lgd).join('')}</div>${drSvgTests(tRows)}</div>
  ${sumanCard}
  <div class="card wide"><h3>교재별 과제 이행률</h3><p class="cap">과제 2개 이상 기록된 교재 기준${d.hardAvg!=null?`, 고난도(C단계) 과제는 평균 ${d.hardAvg}%`:''}입니다.</p>${drSvgHBars(hwRows,{max:100,ticks:[0,50,100],suf:'%'})}</div>
  <div class="card wide"><h3>단원별 오답 문항 수 (총 ${d.wrongSum}문항)</h3><p class="cap">${d.errRows[0]?`가장 많은 영역은 ‘${e(d.errRows[0].g)}’(${d.errRows[0].w}문항)입니다.`:'오답노트 기록이 없습니다.'}</p><div class="lg">${['U','M','R'].filter(k=>d.errRows.some(g=>g.type===k)).map(k=>`<span><span class="dot" style="background:${DR_COL[k]}"></span>${{U:'고등 과정',M:'중등 과정',R:'모의고사·고교 기출'}[k]}</span>`).join('')}</div>${drSvgHBars(errR,{max:errMax,ticks:[0,errMax/2,errMax]})}</div>
